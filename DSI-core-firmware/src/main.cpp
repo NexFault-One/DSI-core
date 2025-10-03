@@ -26,7 +26,7 @@ void receiverLoop()
   {
     test_msgs_Error_Message errors = test_msgs_Error_Message_init_zero;
 
-    char payload_str[256];
+    char payload_str[PROTOBUF_BUFFER_SIZE];
 
     errors.payload.arg = payload_str;
     errors.payload.funcs.decode = &protobuf_decode_string;
