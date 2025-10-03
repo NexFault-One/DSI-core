@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+
+package test_msgs;
+
+message UART_Channels {
+    int32 number = 13;
+}
+
+message Error_Message {
+    uint32 id = 1;
+    string payload = 2;
+
+}
