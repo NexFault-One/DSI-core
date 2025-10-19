@@ -1,6 +1,79 @@
 #include <Arduino.h>
+#include <iostream>
+#include <memory>
+#include "injectors/ByteDropInjector.h"
+#include <stdio.h>
+#include "../include/proto_codec/proto_communication.h"
+#include "../include/proto_codec/proto_communication.c"
+#include "../protobuf_msgs/proto_msgs/uart_data.pb.c"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#define TX_PIN 17
+#define RX_PIN 18
+
+#define HOST_BAUD 9600
+#define DEVICE_BAUD 115200
+
+// byte drop injector testing
+auto drop_byte = std::make_unique<ByteDropInjector>(2, 1);
+
+test_msgs_Error_Message errors;
+
+
+void transmitterLoop()
+{
+
+  char str[PROTOBUF_BUFFER_SIZE] = "test hello world";
+
+  errors = test_msgs_Error_Message_init_zero;
+  errors.id = 42;
+  errors.payload.arg = str;
+  errors.payload.funcs.encode = &protobuf_encode_string;
+
+  Serial.println("DSI to UUT Encoding...");
+
+  if(protobuf_send(&Serial2, &errors, test_msgs_Error_Message_fields, strlen(str), drop_byte.get(), true))
+  {
+    Serial.println("Core: " + String(xPortGetCoreID()));
+    Serial.print("original message: ");
+    Serial.println(str);
+    Serial.println("Protobuf Message sent successfully.");
+  }
+  else
+  {
+    Serial.println("Failed to send message. Encoding failure.");
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(200));
+
+}
+
+void receiverLoop()
+{
+  if(Serial2.available())
+  {
+    errors = test_msgs_Error_Message_init_zero;
+
+    char payload_str[PROTOBUF_BUFFER_SIZE];
+    errors.payload.arg = payload_str;
+    errors.payload.funcs.decode = &protobuf_decode_string;
+    Serial.println("TMI decoding from UUT...");
+    if(protobuf_receive(&Serial2, &errors, test_msgs_Error_Message_fields))
+    {
+      Serial.print("ID: ");
+      Serial.println(errors.id);
+      Serial.print("Payload: ");
+      Serial.println(payload_str);
+    } else {
+      Serial.println("Decoding data failed!");
+    }
+  } else {
+    Serial.println("Serial2 unavailable...");
+  }
+
+  vTaskDelay(pdMS_TO_TICKS(200));
+}
 
 // Task handles
 TaskHandle_t DSI_Waveform_Handle = NULL;
@@ -13,10 +86,11 @@ void DSI_Waveform_Task(void *pvParameters) {
   for (;;) {
     // Add your waveform generation logic here
     Serial.println("DSI_Waveform running on Core " + String(xPortGetCoreID()));
-    
+    transmitterLoop();
     // Task delay to prevent watchdog timeout
     vTaskDelay(pdMS_TO_TICKS(1000)); // 1 second delay
   }
+
 }
 
 // DSI_TMI task - runs on Core 1
@@ -25,7 +99,7 @@ void DSI_TMI_Task(void *pvParameters) {
   
   for (;;) {
     // Add your TMI (Telemetry, Monitoring, Interface) logic here
-    Serial.println("DSI_TMI running on Core " + String(xPortGetCoreID()));
+    //Serial.println("DSI_TMI running on Core " + String(xPortGetCoreID()));
     
     // Task delay to prevent watchdog timeout
     vTaskDelay(pdMS_TO_TICKS(1500)); // 1.5 second delay
@@ -33,10 +107,15 @@ void DSI_TMI_Task(void *pvParameters) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(HOST_BAUD);
+  Serial2.begin(DEVICE_BAUD, SERIAL_8N1, RX_PIN, TX_PIN);
   
   // Wait for serial connection
   while (!Serial) {
+    delay(10);
+  }
+
+  while (!Serial2) {
     delay(10);
   }
   
