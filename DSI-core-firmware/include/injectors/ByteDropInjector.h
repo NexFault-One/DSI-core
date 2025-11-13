@@ -6,7 +6,7 @@ class ByteDropInjector : public Injector {
 public:
     ByteDropInjector(uint32_t numBytes, uint32_t every_n);
 
-    size_t inject(uint8_t* buffer, size_t data_len, size_t protobuf_tbytes) override;
+    size_t inject(uint8_t* buffer, size_t data_len) override;
 
 private:
     uint32_t numBytes;

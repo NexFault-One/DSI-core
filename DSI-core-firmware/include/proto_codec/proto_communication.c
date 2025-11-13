@@ -1,7 +1,7 @@
 #include "proto_communication.h"
 
 
-bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* fields, size_t len=0, Injector* injector=nullptr, bool injection=false)
+bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* fields)
 {
     uint8_t buffer[PROTOBUF_BUFFER_SIZE];
 
@@ -10,14 +10,7 @@ bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* 
     {
         return false;
     }
-    // if injection is true and the injector is not a null ptr, inject the data with errors otherwise keep same data
-    if(injection && injector)
-    {
-        size_t newlen = injector->inject(buffer, len, stream.bytes_written);
-        serial->write(buffer, newlen);
-    } else {
-        serial->write(buffer, stream.bytes_written);
-    }
+    serial->write(buffer, stream.bytes_written);
 
     serial->flush();
     return true;

@@ -5,7 +5,7 @@
 ByteDropInjector::ByteDropInjector(uint32_t numBytes, uint32_t every_n) : numBytes(numBytes), every_n(every_n)
 {}
 
-size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len, size_t protobuf_tbytes)
+size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len)
 {
     if (data_len == 0)
     {
@@ -32,11 +32,10 @@ size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len, size_t protobu
     {
         buffer[i-numBytes] = buffer[i];
     }
-
-    // retrieve protobuf total bytes and reduce the number of bytes
-    size_t out = protobuf_tbytes - numBytes;
+    size_t out = data_len-numBytes;
     // print for logs
-    Serial.printf("[BytesDropInjector] original size data out: %u\n", protobuf_tbytes);
+    Serial.printf("[BytesDropInjector] original size data out: %u\n", numBytes);
     Serial.printf("[BytesDropInjector] size data out: %u\n", out);
+    Serial.printf("[BytesDropInjector] data str len: %u\n", data_len);
     return out;
 }

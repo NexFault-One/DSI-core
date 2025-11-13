@@ -11,7 +11,7 @@
 #define PROTOBUF_BUFFER_SIZE 128
 
 // non callback protobuf messages (integers etc..)
-bool protobuf_send(HardwareSerial& serial, const void* msg, const pb_msgdesc_t* fields, size_t len=0, Injector* injector=nullptr, bool injection=false);
+bool protobuf_send(HardwareSerial& serial, const void* msg, const pb_msgdesc_t* fields);
 bool protobuf_receive(HardwareSerial& serial, void* msg, const pb_msgdesc_t* fields);
 
 // callback (strings)

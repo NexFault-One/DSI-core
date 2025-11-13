@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include <iostream>
 #include <memory>
-#include "injectors/ByteDropInjector.h"
 #include <stdio.h>
 #include "../include/proto_codec/proto_communication.h"
 #include "../include/proto_codec/proto_communication.c"
 #include "../protobuf_msgs/proto_msgs/uart_data.pb.c"
+#include "injectors/ByteDropInjector.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -16,60 +16,77 @@
 #define DEVICE_BAUD 115200
 
 // byte drop injector testing
-auto drop_byte = std::make_unique<ByteDropInjector>(2, 1);
 
-test_msgs_Error_Message errors;
+nxf1_v1_DsiCommand commands;
+nxf1_v1_ByteDropParams bytesdrop;
 
 
 void transmitterLoop()
 {
+  Serial.println("*********************** DSI TRANSMITTER ***********************");
 
-  char str[PROTOBUF_BUFFER_SIZE] = "test hello world";
+  // protobuf decoding for DsiCommands
+  if(!protobuf_receive(&Serial, &commands, nxf1_v1_DsiCommand_fields))
+  {
+    Serial.print("[DSI Protobuf] Failed to decode DSI Commands");
+    return;
+  }
 
-  errors = test_msgs_Error_Message_init_zero;
-  errors.id = 42;
-  errors.payload.arg = str;
-  errors.payload.funcs.encode = &protobuf_encode_string;
+  Serial.println("Received protobuf...");
+
+  // default to 0, no byte dropping
+  auto drop_byte = std::make_unique<ByteDropInjector>(commands.params.byte_drop.length, commands.params.byte_drop.start_offset);
+  //if(commands.inj_type == nxf1_v1_InjectionType_INJ_BYTE_DROP)
+  //{
+  //  Serial.println("[DSI] BytesDrop command received");
+  //  Serial.print("Length (Num of Bytes to drop): ");
+  //  Serial.println(commands.params.byte_drop.length);
+  //  Serial.print("Offset (everyN): ");
+  //  Serial.println(commands.params.byte_drop.start_offset);
+  //  auto drop_byte = std::make_unique<ByteDropInjector>(commands.params.byte_drop.length, commands.params.byte_drop.start_offset);
+  //  
+  //}
+
+  // payload testing
+  char str[PROTOBUF_BUFFER_SIZE] = "hello world";
+  uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+
+
+  size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", str);
+  if(len == 0)
+  {
+    Serial.println("Payload empty...");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    return;
+  }
+
+  Serial.print("[TX BDI] calling injector on ");
+  Serial.print(len);
+  Serial.println(" bytes...");
+  size_t newlen = drop_byte->inject(buffer, len);
+
+  if(newlen > sizeof(buffer))
+  {
+    Serial.println("[TX BDI] injector returned invalid length, clamping...");
+    newlen = sizeof(buffer);
+  }
+
+  Serial2.write(buffer, newlen);
+  Serial2.flush();
 
   Serial.println("DSI to UUT Encoding...");
-
-  if(protobuf_send(&Serial2, &errors, test_msgs_Error_Message_fields, strlen(str), drop_byte.get(), true))
-  {
-    Serial.println("Core: " + String(xPortGetCoreID()));
-    Serial.print("original message: ");
-    Serial.println(str);
-    Serial.println("Protobuf Message sent successfully.");
-  }
-  else
-  {
-    Serial.println("Failed to send message. Encoding failure.");
-  }
-
   vTaskDelay(pdMS_TO_TICKS(200));
 
 }
 
 void receiverLoop()
 {
+  Serial.println("*********************** DSI RECEIVER ***********************");
   if(Serial2.available())
   {
-    errors = test_msgs_Error_Message_init_zero;
 
-    char payload_str[PROTOBUF_BUFFER_SIZE];
-    errors.payload.arg = payload_str;
-    errors.payload.funcs.decode = &protobuf_decode_string;
-    Serial.println("TMI decoding from UUT...");
-    if(protobuf_receive(&Serial2, &errors, test_msgs_Error_Message_fields))
-    {
-      Serial.print("ID: ");
-      Serial.println(errors.id);
-      Serial.print("Payload: ");
-      Serial.println(payload_str);
-    } else {
-      Serial.println("Decoding data failed!");
-    }
   } else {
-    Serial.println("Serial2 unavailable...");
+    Serial.println("Serial2 not available...");
   }
 
   vTaskDelay(pdMS_TO_TICKS(200));
