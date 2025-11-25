@@ -17,21 +17,35 @@ bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* 
 
 }
 
-bool protobuf_receive(HardwareSerial* serial, void* msg, const pb_msgdesc_t* fields) 
+bool protobuf_receive(HardwareSerial* serial, void* msg, const pb_msgdesc_t* fields)
 {
     uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-    size_t bytes_read = 0;
 
-    while (serial->available() && bytes_read < PROTOBUF_BUFFER_SIZE) {
-        buffer[bytes_read++] = serial->read();
-    }
-
-    if(bytes_read == 0)
-    {
+    // --- 1. Read 2-byte length prefix first ---
+    if (serial->available() < 2)
         return false;
+
+    uint16_t msg_len = 0;
+    msg_len  = serial->read();
+    msg_len |= (serial->read() << 8);
+
+    if (msg_len == 0 || msg_len > PROTOBUF_BUFFER_SIZE)
+        return false;
+
+    // --- 2. Wait until full message is available ---
+    size_t bytes_read = 0;
+    unsigned long start = millis();
+    while (bytes_read < msg_len) {
+        if (serial->available()) {
+            buffer[bytes_read++] = serial->read();
+        }
+        if (millis() - start > 200) {     // 200 ms timeout
+            return false;                 // timed out → incomplete frame
+        }
     }
 
-    pb_istream_t stream = pb_istream_from_buffer(buffer, bytes_read);
+    // --- 3. Decode normally ---
+    pb_istream_t stream = pb_istream_from_buffer(buffer, msg_len);
     return pb_decode(&stream, fields, msg);
 }
 
