@@ -19,8 +19,8 @@ void BitFlipInjector::flip_global_bit(uint8_t* buffer, size_t data_len, uint32_t
 
 size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
 {
-  if (data_len == 0 || buffer == nullptr) {
-        Serial.println("[BitFlipInjector] called with data_len=0 or buffer=null");
+  if (data_len == 0 || buffer == nullptr || data_len > 512) {
+        Serial.println("[BitFlipInjector] called with data_len=0 or buffer=null or data_len > 512");
         return 0;
     }
 
@@ -77,6 +77,11 @@ size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
         // Here we use a dynamic bitmap sized to total_bits.
         // If total_bits is huge this might fail; but typical messages are modest.
         std::vector<uint8_t> visited((total_bits + 7) / 8, 0);
+        if(total_bits > 8192)
+        {
+            Serial.println("[BitFlipInjector] WARNING: large message size may cause high memory usage for visited bitmap");
+            return data_len;
+        }
 
         uint32_t done = 0;
         uint32_t attempts = 0;

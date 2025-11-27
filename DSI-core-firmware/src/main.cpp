@@ -19,24 +19,22 @@
 
 // dsi commands (includes injectors types params inside of it [oneof params])
 nxf1_v1_DsiCommand commands;
+//nxf1_v1_ByteDropParams bytedropc;
 
 // host included in both loops. the DSI receives from the host while TMI sends to the host.
 void dsi_uut_loop()
 {
 
+  
   nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
+  //bytedropc = nxf1_v1_ByteDropParams_init_zero;
   char payload_str[PROTOBUF_BUFFER_SIZE];
-  memset(payload_str, 0, sizeof(payload_str));
+  char temp_payload_str[PROTOBUF_BUFFER_SIZE] = "This is a ByteDrop message"; 
+  payload_str[0] = '\0';
 
   char bit_flip_str[PROTOBUF_BUFFER_SIZE] = "Hello world";
 
-  //commands.which_params = nxf1_v1_DsiCommand_byte_drop_tag;
-  commands.params.byte_drop.payload.arg = payload_str;
-  commands.params.byte_drop.payload.funcs.decode = &protobuf_decode_string;
-
   vTaskDelay(pdMS_TO_TICKS(100));
-  Serial.printf("[DEBUG] payload_str len=%u content='%s'\n", strlen(payload_str), payload_str);
-
   // protobuf decoding for DsiCommands
   if(!protobuf_receive(&Serial, &commands, nxf1_v1_DsiCommand_fields))
   {
@@ -49,16 +47,22 @@ void dsi_uut_loop()
   if(commands.inj_type == nxf1_v1_InjectionType_INJ_BYTE_DROP)
   {
     uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+    Serial.printf("[DEBUG] which_params=%d (expect %d)\n",
+              commands.which_params, nxf1_v1_DsiCommand_byte_drop_tag);
+    Serial.printf("[DEBUG] start_offset=%u length=%u payload='%s'\n",
+              commands.params.byte_drop.start_offset,
+              commands.params.byte_drop.length,
+              commands.params.byte_drop.payload);
     Serial.println("[DSI] BytesDrop command received");
     Serial.print("Length (Num of Bytes to drop): ");
     Serial.println(commands.params.byte_drop.length);
     Serial.print("Offset (everyN): ");
     Serial.println(commands.params.byte_drop.start_offset);
     Serial.print("Original message: ");
-    //Serial.println(payload_str);
+    Serial.println(commands.params.byte_drop.payload);
     auto drop_byte = std::make_unique<ByteDropInjector>(commands.params.byte_drop.length, commands.params.byte_drop.start_offset);
     
-    size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", payload_str);
+    size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.byte_drop.payload);
     if(len == 0)
     {
       Serial.println("Payload empty...");
@@ -84,16 +88,27 @@ void dsi_uut_loop()
     uint8_t buffer[PROTOBUF_BUFFER_SIZE];
     Serial.println("[DSI] BitFlip command received");
     Serial.print("Mode: ");
-    Serial.println("Random");
-    Serial.print("every_n: ");
-    Serial.println("none because it is random!");
-    Serial.print("Number of bits to drop: ");
-    Serial.println("5");
+    if(commands.params.bit_flip.mode == 0)
+    {
+      Serial.println("RANDOM");
+    } else {
+      Serial.println("PERIODIC");
+    }
+    Serial.print("every_n (PERIODIC ONLY): ");
+    Serial.println(commands.params.bit_flip.every_n_p);
+    Serial.print("Number of bits to drop (RANDOM ONLY): ");
+    Serial.println(commands.params.bit_flip.bits_drop);
     Serial.print("Original message: ");
-    Serial.println(bit_flip_str);
-    auto bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::RANDOM, 0, 5);
+    Serial.println(commands.params.bit_flip.payload);
     
-    size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", bit_flip_str);
+    std::unique_ptr<Injector> bit_flip;
+    if(commands.params.bit_flip.mode == nxf1_v1_BitFlipMode_RANDOM)
+    {
+      bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::RANDOM, 0, commands.params.bit_flip.bits_drop);
+    } else {
+      bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::PERIODIC, commands.params.bit_flip.every_n_p, 0);
+    }
+    size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.bit_flip.payload);
     Serial.print("Original hex: ");
     for(size_t i = 0;i<len;++i)
     {
