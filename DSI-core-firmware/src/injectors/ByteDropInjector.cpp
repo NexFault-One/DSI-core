@@ -17,7 +17,7 @@ size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len)
     size_t drop_index = (every_n == 0 ? (data_len - numBytes) : ((every_n - 1) % data_len));
 
     Serial.printf("[BytesDropInjector] in=%u, every_n %u, numBytes=%u, drop_index=%u \n", (unsigned)data_len, (unsigned)every_n, (unsigned)numBytes, (unsigned)drop_index);
-    Serial.print("Dropped hexs: ");
+    Serial.print("Dropped hex values: ");
     for (size_t i = 0; i < numBytes; i++)
     {
         if(numBytes + i < data_len)
