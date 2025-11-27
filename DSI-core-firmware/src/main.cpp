@@ -10,8 +10,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define TX_PIN 17
-#define RX_PIN 18
+// nizar esp pins
+#define TX_PIN_NZ 17
+#define RX_PIN_NZ 18
+
+// prototype pins
+#define TX_PIN 6
+#define RX_PIN 5
 
 #define HOST_BAUD 9600
 #define DEVICE_BAUD 115200
