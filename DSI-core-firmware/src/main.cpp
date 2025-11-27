@@ -15,7 +15,6 @@
 
 #define HOST_BAUD 9600
 #define DEVICE_BAUD 115200
-#define BIT_FLIP 1
 
 // dsi commands (includes injectors types params inside of it [oneof params])
 nxf1_v1_DsiCommand commands;
@@ -25,14 +24,8 @@ nxf1_v1_DsiCommand commands;
 void dsi_uut_loop()
 {
 
-  
   nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
   //bytedropc = nxf1_v1_ByteDropParams_init_zero;
-  char payload_str[PROTOBUF_BUFFER_SIZE];
-  char temp_payload_str[PROTOBUF_BUFFER_SIZE] = "This is a ByteDrop message"; 
-  payload_str[0] = '\0';
-
-  char bit_flip_str[PROTOBUF_BUFFER_SIZE] = "Hello world";
 
   vTaskDelay(pdMS_TO_TICKS(100));
   // protobuf decoding for DsiCommands
@@ -109,11 +102,6 @@ void dsi_uut_loop()
       bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::PERIODIC, commands.params.bit_flip.every_n_p, 0);
     }
     size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.bit_flip.payload);
-    Serial.print("Original hex: ");
-    for(size_t i = 0;i<len;++i)
-    {
-      Serial.printf("0x%02X ", bit_flip_str[i]);
-    }
     Serial.println();
     if(len == 0)
     {
