@@ -14,16 +14,41 @@
 #define TX_PIN_NZ 17
 #define RX_PIN_NZ 18
 
-// prototype pins
+// prototype pins, for real product. TX = 6 and RX = 5
 #define TX_PIN 6
 #define RX_PIN 5
 
 #define HOST_BAUD 9600
 #define DEVICE_BAUD 115200
 
+// to identify the esp32 for com port
+#define DEVICE_ID "DSI"
+
 // dsi commands (includes injectors types params inside of it [oneof params])
 nxf1_v1_DsiCommand commands;
-//nxf1_v1_ByteDropParams bytedropc;
+
+void performHandshake()
+{
+  const TickType_t retryDelay = pdMS_TO_TICKS(1000);
+  String expectedAck = "<ACK:" DEVICE_ID ">";
+
+  while(true)
+  {
+    Serial.printf("<HELLO_UI:%s>\n", DEVICE_ID);
+    vTaskDelay(retryDelay);
+
+    if(Serial.available())
+    {
+      String msg = Serial.readStringUntil('\n');
+      msg.trim();
+      if(msg == expectedAck)
+      {
+        Serial.printf("[HANDSHAKE OK] Device %s recognized by dashboard.\n", DEVICE_ID);
+        break;
+      }
+    }
+  }
+}
 
 // host included in both loops. the DSI receives from the host while TMI sends to the host.
 void dsi_uut_loop()
@@ -158,6 +183,12 @@ TaskHandle_t DSI_TMI_Handle = NULL;
 void DSI_Waveform_Task(void *pvParameters) {
   Serial.println("DSI_Waveform task started on Core " + String(xPortGetCoreID()));
   Serial.println("DSI_Waveform running on Core " + String(xPortGetCoreID()));
+
+  performHandshake();
+
+  // successful?
+  Serial.println("[DSI] HANDSHAKE COMPLETED. DSI: Ready.");
+
   for (;;) {
     // Add your waveform generation logic here
     dsi_uut_loop();

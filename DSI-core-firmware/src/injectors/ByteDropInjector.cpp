@@ -7,35 +7,51 @@ ByteDropInjector::ByteDropInjector(uint32_t numBytes, uint32_t every_n) : numByt
 
 size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len)
 {
-    if (data_len == 0)
-    {
-        Serial.println("[BytesDropInjector] called with data_len=0");
+    if (!buffer || data_len == 0) {
+        Serial.println("[ByteDropInjector] called with data_len=0 or buffer=null");
         return 0;
     }
 
-    // drop numBytes at every n and check if it is within bounds
-    size_t drop_index = (every_n == 0 ? (data_len - numBytes) : ((every_n - 1) % data_len));
+    if (numBytes == 0) {
+        return data_len;
+    }
 
-    Serial.printf("[BytesDropInjector] in=%u, every_n %u, numBytes=%u, drop_index=%u \n", (unsigned)data_len, (unsigned)every_n, (unsigned)numBytes, (unsigned)drop_index);
+    // Determine drop index safely
+    size_t drop_index = 0;
+    if (every_n == 0) {
+        // default to start of buffer
+        drop_index = 0;
+    } else {
+        drop_index = (every_n - 1) % data_len;
+    }
+
+    // clamp drop length so we don't drop past the end
+    size_t actual_drop = numBytes;
+    if (actual_drop > data_len - drop_index) {
+        actual_drop = data_len - drop_index;
+    }
+    if (actual_drop == 0) {
+        return data_len;
+    }
+
+    Serial.printf("[ByteDropInjector] in=%u, every_n=%u, numBytes=%u, drop_index=%u\n",
+                  (unsigned)data_len, (unsigned)every_n, (unsigned)numBytes, (unsigned)drop_index);
+
+    // optional: print dropped bytes (guarded)
     Serial.print("Dropped hex values: ");
-    for (size_t i = 0; i < numBytes; i++)
-    {
-        if(numBytes + i < data_len)
-        {
-            Serial.printf("0x%02X ", buffer[numBytes+i]);
-        }
+    for (size_t i = 0; i < actual_drop && (drop_index + i) < data_len; ++i) {
+        Serial.printf("0x%02X ", buffer[drop_index + i]);
     }
     Serial.println();
 
-    // shift left
-    for (size_t i=drop_index+i; i<data_len; ++i)
-    {
-        buffer[i-numBytes] = buffer[i];
+    // Shift remainder left safely using memmove
+    size_t tail_len = data_len - (drop_index + actual_drop);
+    if (tail_len > 0) {
+        memmove(buffer + drop_index, buffer + drop_index + actual_drop, tail_len);
     }
-    size_t out = data_len-numBytes;
-    // print for logs
-    Serial.printf("[BytesDropInjector] original size data out: %u\n", numBytes);
-    Serial.printf("[BytesDropInjector] size data out: %u\n", out);
-    Serial.printf("[BytesDropInjector] data str len: %u\n", data_len);
+
+    size_t out = data_len - actual_drop;
+
+    Serial.printf("[ByteDropInjector] dropped %u bytes, new_len=%u\n", (unsigned)actual_drop, (unsigned)out);
     return out;
 }
