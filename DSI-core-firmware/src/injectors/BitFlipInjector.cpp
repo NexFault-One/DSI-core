@@ -72,8 +72,7 @@ size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
         Serial.printf("[BitFlipInjector] RANDOM mode flipping %u bits\n", (unsigned)flips_to_do);
 
         // We'll avoid flipping the same bit twice by tracking a small bitmap of visited bits.
-        // For large messages this vector is memory-heavy but still acceptable for microcontrollers
-        // depending on memory; if that's a concern you can allow duplicate flips (which cancel).
+        // For large messages this vector is memory-heavy. You can duplicate to cancel if too much memory.
         // Here we use a dynamic bitmap sized to total_bits.
         // If total_bits is huge this might fail; but typical messages are modest.
         std::vector<uint8_t> visited((total_bits + 7) / 8, 0);
@@ -88,7 +87,7 @@ size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
         const uint32_t max_attempts = flips_to_do * 10 + 100; // safety to avoid infinite loops
 
         while (done < flips_to_do && attempts < max_attempts) {
-            // random() is Arduino function; returns [0, n)
+            // random() [0, n[
             unsigned long r = (unsigned long)random(total_bits); // total_bits fits into unsigned long for typical sizes
             uint32_t bit_index = (uint32_t)r;
 
