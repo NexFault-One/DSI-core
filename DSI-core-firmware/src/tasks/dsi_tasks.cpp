@@ -6,26 +6,77 @@ extern "C" {
     #include "pb_encode.h"
 }
 
+QueueHandle_t uartQueue;
+QueueHandle_t modbusQueue;
+
 // use dsi_message.h later when multiple transport protocols are used instead of passing raw buffers of decoded protobuf msgs
 
-struct TransportQueues
+// create the Injector pointer for the corresponding injection type selected
+static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command)
 {
-  QueueHandle_t uartQueue;
-  QueueHandle_t modbusQueue;
-  QueueHandle_t i2cQueue;
-};
-
+  switch (command.inj_type)
+  {
+    case nxf1_v1_InjectionType_INJ_BYTE_DROP:
+      Serial.println("[DSI] Creating ByteDrop Injector");
+      Serial.printf("[DEBUG] which_params=%d (expect %d)\n",
+              command.which_params, nxf1_v1_DsiCommand_byte_drop_tag);
+      Serial.printf("[DEBUG] start_offset=%u length=%u payload='%s'\n",
+              command.params.byte_drop.start_offset,
+              command.params.byte_drop.length,
+              command.params.byte_drop.payload);
+      Serial.println("[DSI] BytesDrop command received");
+      Serial.print("Length (Num of Bytes to drop): ");
+      Serial.println(command.params.byte_drop.length);
+      Serial.print("Offset (everyN): ");
+      Serial.println(command.params.byte_drop.start_offset);
+      Serial.print("Original message: ");
+      Serial.println(command.params.byte_drop.payload);
+      return std::make_unique<ByteDropInjector>(command.params.byte_drop.length, command.params.byte_drop.start_offset);
+    case nxf1_v1_InjectionType_INJ_BIT_FLIP:
+      Serial.println("[DSI] Creating BitFlip Injector");
+      if(command.params.bit_flip.mode == nxf1_v1_BitFlipMode_BITFLIP_RANDOM) 
+      {
+        Serial.println("Mode: RANDOM");
+        Serial.print("Number of bits to drop (RANDOM ONLY): ");
+        Serial.println(command.params.bit_flip.bits_drop); 
+        Serial.print("Original message: ");
+        Serial.println(command.params.bit_flip.payload);
+        return std::make_unique<BitFlipInjector>(BitFlipMode::RANDOM, 0, command.params.bit_flip.bits_drop); 
+      }
+      else 
+      { 
+        Serial.println("Mode: PERIODIC");
+        Serial.print("every_n (PERIODIC ONLY): ");
+        Serial.println(command.params.bit_flip.every_n_p);
+        Serial.print("Original message: ");
+        Serial.println(command.params.bit_flip.payload);
+        return std::make_unique<BitFlipInjector>(BitFlipMode::PERIODIC, command.params.bit_flip.every_n_p, 0); 
+      }
+    case nxf1_v1_InjectionType_INJ_PHANTOM_BYTE:
+      Serial.println("[DSI] Creating PhantomByte Injector");
+      if(command.params.phantom_byte.mode == nxf1_v1_PhantomByteMode_PHANTOM_RANDOM)
+      {
+        Serial.println("Mode: RANDOM");
+        Serial.printf("Phantom Byte to be introduced: 0x%02X \n", command.params.phantom_byte.byte_value);
+        return std::make_unique<PhantomByteInjector>(PhantomByteMode::RANDOM, command.params.phantom_byte.byte_value, 0);
+      } else 
+      {
+        Serial.println("Mode: MANUAL");
+        Serial.printf("Phantom Byte to be introduced: 0x%02X \n", command.params.phantom_byte.byte_value);
+        Serial.print("Offset: ");
+        Serial.println(command.params.phantom_byte.offset);
+        Serial.print("Original message: ");
+        Serial.println(command.params.phantom_byte.payload);
+        return std::make_unique<PhantomByteInjector>(PhantomByteMode::RANDOM, command.params.phantom_byte.byte_value, command.params.phantom_byte.offset);
+      }
+    default:
+        Serial.println("[DSI] Unknown injection type");
+        return nullptr;
+  }
+}
 static void dsi_cmd_task(void *pv)
 {
-    auto queues = (TransportQueues*)pv;  
-
-    if(queues == NULL)
-    {
-        Serial.println("[DSI_CMD_TASK] No queue provided!");
-        vTaskDelete(NULL);
-        return;
-    }
-    
+    (void)pv;
     for(;;)
     {
         nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
@@ -35,174 +86,108 @@ static void dsi_cmd_task(void *pv)
             continue;
         }
 
-        if(xQueueSend(queues->uartQueue, &commands, portMAX_DELAY) == pdTRUE)
+        switch(commands.transport)
         {
-            Serial.println("[DSI_CMD_TASK] Command added to the InjectorQueue");
+          case nxf1_v1_TransportType_TRANSPORT_UART:
+            xQueueSend(uartQueue, &commands, portMAX_DELAY);
+            break;
+          case nxf1_v1_TransportType_TRANSPORT_MODBUS:
+            xQueueSend(modbusQueue, &commands, portMAX_DELAY);
+            break;
+          default:
+            Serial.println("[DSI_CMD_TASK] Unknown transport...");
+            break;
         }
     }
     
 }
 
-static void dsi_injector_task(void *pv)
+static void uart_injector_task(void *pv)
 {
     QueueHandle_t queue = (QueueHandle_t)pv;   
-    
-    if(queue == NULL)
-    {
-        Serial.println("[DSI_INJ_TASK] No queue provided!");
-        vTaskDelete(NULL);
-        return;
-    }
+    UartProtocol uart;
 
     for(;;)
     {
         nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
         if(xQueueReceive(queue, &commands, portMAX_DELAY) == pdTRUE)
         {
-            Serial.println("*********************** DSI TRANSMITTER ***********************");
-            Serial.println("[DSI] DSI Commands Received!");
-            // default to 0, no byte dropping
-            if(commands.inj_type == nxf1_v1_InjectionType_INJ_BYTE_DROP)
-            {
-              uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-              Serial.printf("[DEBUG] which_params=%d (expect %d)\n",
-                        commands.which_params, nxf1_v1_DsiCommand_byte_drop_tag);
-              Serial.printf("[DEBUG] start_offset=%u length=%u payload='%s'\n",
-                        commands.params.byte_drop.start_offset,
-                        commands.params.byte_drop.length,
-                        commands.params.byte_drop.payload);
-              Serial.println("[DSI] BytesDrop command received");
-              Serial.print("Length (Num of Bytes to drop): ");
-              Serial.println(commands.params.byte_drop.length);
-              Serial.print("Offset (everyN): ");
-              Serial.println(commands.params.byte_drop.start_offset);
-              Serial.print("Original message: ");
-              Serial.println(commands.params.byte_drop.payload);
-              auto drop_byte = std::make_unique<ByteDropInjector>(commands.params.byte_drop.length, commands.params.byte_drop.start_offset);
+            Serial.println("╔════════════════════════════════════════════════════════════╗");
+            Serial.println("║                   DIGITAL SIGNAL INJECTOR                  ║");
+            Serial.println("╚════════════════════════════════════════════════════════════╝");
+            Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
+            Serial.println("[DSI_CMD_TASK] PROTOCOL: UART");
+            auto injector = createInjector(commands);
 
-              size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.byte_drop.payload);
-              if(len == 0)
-              {
-                Serial.println("Payload empty...");
-                vTaskDelay(pdMS_TO_TICKS(200));
-                return;
-              }
-          
-              Serial.print("[DSI] calling injector on ");
-              Serial.print(len);
-              Serial.println(" bytes...");
+            uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+            size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+            uart.inject(injector.get(), buffer, len);
 
-              size_t newlen;
-              if(drop_byte != nullptr)
-              {
-                newlen = drop_byte->inject(buffer, len);
-              } else {
-                newlen = len;
-              }
-          
-              if(newlen > sizeof(buffer))
-              {
-                Serial.println("[DSI] injector returned invalid length, clamping...");
-                newlen = sizeof(buffer);
-              }
-          
-              Serial2.write(buffer, newlen);
-              Serial2.flush();
-            } else if (commands.inj_type == nxf1_v1_InjectionType_INJ_BIT_FLIP)
-            {
-              uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-              Serial.println("[DSI] BitFlip command received");
-              Serial.print("Mode: ");
-              if(commands.params.bit_flip.mode == nxf1_v1_BitFlipMode_BITFLIP_RANDOM)
-              {
-                Serial.println("RANDOM");
-              } else {
-                Serial.println("PERIODIC");
-              }
-              // create injection
-              std::unique_ptr<Injector> bit_flip;
-              if(commands.params.bit_flip.mode == nxf1_v1_BitFlipMode_BITFLIP_RANDOM)
-              {
-                bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::RANDOM, 0, commands.params.bit_flip.bits_drop);
-                Serial.print("Number of bits to drop (RANDOM ONLY): ");
-                Serial.println(commands.params.bit_flip.bits_drop);
-              } else {
-                bit_flip = std::make_unique<BitFlipInjector>(BitFlipMode::PERIODIC, commands.params.bit_flip.every_n_p, 0);
-                Serial.print("every_n (PERIODIC ONLY): ");
-                Serial.println(commands.params.bit_flip.every_n_p);
-              }
-              Serial.print("Original message: ");
-              Serial.println(commands.params.bit_flip.payload);
-              size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.bit_flip.payload);
-              Serial.println();
-
-              // check if payload is empty...
-              if(len == 0)
-              {
-                Serial.println("Payload empty...");
-                vTaskDelay(pdMS_TO_TICKS(200));
-                return;
-              }
-              
-              // start injection
-              Serial.print("[DSI] calling injector on ");
-              Serial.print(len);
-              Serial.println(" bytes...");
-
-              size_t newlen;
-              if(bit_flip != nullptr)
-              {
-                newlen = bit_flip->inject(buffer, len);
-              } else {
-                newlen = len;
-              }
-          
-              if(newlen > sizeof(buffer))
-              {
-                Serial.println("[DSI] injector returned invalid length, clamping...");
-                newlen = sizeof(buffer);
-              }
-          
-              Serial2.write(buffer, newlen);
-              Serial2.flush();
-            } else if (commands.inj_type == nxf1_v1_InjectionType_INJ_PHANTOM_BYTE)
-            {
-              uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-              Serial.println("[DSI] PhantomByte command received");
-              Serial.print("Mode: ");
-              // if statement
-              std::unique_ptr<Injector> phantom_byte;
-              if(commands.params.phantom_byte.mode == nxf1_v1_PhantomByteMode_PHANTOM_RANDOM)
-              {
-                phantom_byte = std::make_unique<PhantomByteInjector>(PhantomByteMode::RANDOM, commands.params.phantom_byte.byte_value, 0);
-                Serial.print("Phantom Byte to be introduced: ");
-                Serial.println(commands.params.phantom_byte.byte_value);
-              } else {
-                // 1= 0x01 -- 3 == offset
-                phantom_byte = std::make_unique<PhantomByteInjector>(PhantomByteMode::MANUAL, commands.params.phantom_byte.byte_value, commands.params.phantom_byte.offset);
-                Serial.printf("Phantom Byte to be introduced: 0x%02X \n", commands.params.phantom_byte.byte_value);
-                Serial.print("Offset: ");
-                Serial.println(commands.params.phantom_byte.offset);
-              }
-              Serial.print("Original message: ");
-              Serial.println(commands.params.phantom_byte.payload);
-
-              size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", commands.params.phantom_byte.payload);
-              
-              std::unique_ptr<Protocol> uart_protocol = std::make_unique<UartProtocol>();
-
-              uart_protocol->inject(phantom_byte.get(), buffer, len);
-            
-            }
-            Serial.println("DSI to UUT...");
-            vTaskDelay(pdMS_TO_TICKS(200));
+            Serial.println("[DSI_CMD_TASK] Injection complete!");
+            vTaskDelay(pdMS_TO_TICKS(10));
+            Serial.println("╚════════════════════════════════════════════════════════════╝");
         }
     }
 
 }
-
-void start_dsi_tasks(QueueHandle_t queue)
+static void modbus_injector_task(void* pv)
 {
-    xTaskCreate(dsi_cmd_task, "DSI_CMD", 4096, queue, 3, NULL);
-    xTaskCreate(dsi_injector_task, "DSI_INJ", 4096, queue, 2, NULL);
+  QueueHandle_t queue = (QueueHandle_t)pv;
+  ModbusProtocol modbus(MODBUS_DE);
+
+  for(;;)
+  {
+    nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
+    if(xQueueReceive(queue, &commands, portMAX_DELAY) == pdTRUE)
+    {
+        Serial.println("╔════════════════════════════════════════════════════════════╗");
+        Serial.println("║                   DIGITAL SIGNAL INJECTOR                  ║");
+        Serial.println("╚════════════════════════════════════════════════════════════╝");
+        Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
+        Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS");
+
+        uint32_t duration_ms = commands.duration_ms;
+        auto injector = createInjector(commands);
+
+        if(duration_ms == 0)
+        {
+          uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+          size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+          modbus.inject(injector.get(), buffer, len);
+        // duration injection
+        } else {
+          Serial.printf("[DSI_CMD_TASK] starting injection for %d ms...\n", duration_ms);
+          unsigned long start_time = millis();
+          uint32_t injection_count = 0;
+          while((millis()-start_time) < duration_ms)
+          {
+            uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+            size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+          
+            modbus.inject(injector.get(), buffer, len);
+           injection_count++;
+          
+            vTaskDelay(pdMS_TO_TICKS(10));
+          }
+        }
+        Serial.println("[DSI_CMD_TASK] Injection complete!");
+        vTaskDelay(pdMS_TO_TICKS(10));
+        Serial.println("╚════════════════════════════════════════════════════════════╝");
+    }
+  }
+}
+
+void start_dsi_tasks()
+{
+    uartQueue = xQueueCreate(5, sizeof(nxf1_v1_DsiCommand));
+    modbusQueue = xQueueCreate(5, sizeof(nxf1_v1_DsiCommand));
+    if(!uartQueue || !modbusQueue)
+    {
+      Serial.println("[DSI] Failed to create queues!");
+      return;
+    }
+
+    xTaskCreate(dsi_cmd_task, "DSI_CMD", 4096, NULL, 3, NULL);
+    xTaskCreate(uart_injector_task, "UART_INJ", 4096, uartQueue, 2, NULL);
+    xTaskCreate(modbus_injector_task, "MODBUS_INJ", 4096, modbusQueue, 2, NULL);
 }

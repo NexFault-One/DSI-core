@@ -11,7 +11,7 @@ size_t PhantomByteInjector::inject(uint8_t* buffer, size_t data_len)
         return 0;
     }
 
-    if(data_len>=511)
+    if(data_len>=512)
     {
         Serial.printf("[PhantomByteInjector] Error: data_len (%u) at max capacity, cannot inject\n", (unsigned)data_len);
         return data_len;

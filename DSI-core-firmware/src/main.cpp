@@ -16,6 +16,11 @@
 #define HOST_BAUD 9600
 #define DEVICE_BAUD 115200
 
+// modbus initialization
+#define MODBUS_TX 6
+#define MODBUS_RX 5
+#define MODBUS_DE 4
+
 // to identify the esp32 for com port
 #define DEVICE_ID "DSI"
 
@@ -74,15 +79,8 @@ void DSI_Waveform_Task(void *pvParameters) {
   // successful?
   Serial.println("[DSI] HANDSHAKE COMPLETED. DSI: Ready.");
 
-  QueueHandle_t injectorQueue = xQueueCreate(5, sizeof(nxf1_v1_DsiCommand));
-  if(injectorQueue == NULL)
-  {
-    Serial.println("[DSI] failed to create Injector Queue");
-    vTaskDelete(NULL);
-  }
-
   // start the DSI specific tasks that deal with protobuf decoding and injecting for UART
-  start_dsi_tasks(injectorQueue);
+  start_dsi_tasks();
 
   // start TMI specific taks that will report data
   //start_tmi_tasks(void);
@@ -113,18 +111,36 @@ void DSI_TMI_Task(void *pvParameters) {
 }
 
 void setup() {
+
+  // HOST COMMUNICATION (HOST<->DSI/TMI)
   Serial.begin(HOST_BAUD);
+
+  // MODBUS RTU
+  Serial1.begin(DEVICE_BAUD, SERIAL_8N1, MODBUS_RX, MODBUS_TX);
+
+  // RAW UART
   Serial2.begin(DEVICE_BAUD, SERIAL_8N1, RX_PIN, TX_PIN);
-  
+
   // Wait for serial connection
   while (!Serial) {
     delay(10);
   }
 
-  while (!Serial2) {
+  while (!Serial1) {
     delay(10);
   }
-  
+
+  while(!Serial2) {
+    delay(10);
+  }
+
+  // modbus rs485 direction control pin 
+  pinMode(MODBUS_DE, OUTPUT);
+  digitalWrite(MODBUS_DE, LOW);
+
+  delay(5);
+
+  // create tasks
   Serial.println("Starting DSI Core Firmware...");
   Serial.println("Creating FreeRTOS tasks on dual cores");
   
