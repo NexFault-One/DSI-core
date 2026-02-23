@@ -7,7 +7,7 @@ ModbusProtocol::ModbusProtocol(uint8_t de_pin) : de_pin(de_pin)
     config.func_code = 0x03;
     config.address = 0;
     config.value_or_quantity = 1;
-    config.recalculate_crc = false;
+    config.recalculate_crc = true;
 
     if(!init())
     {

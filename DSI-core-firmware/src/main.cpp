@@ -10,16 +10,17 @@
 #define RX_PIN_NZ 18
 
 // prototype pins, for real product. TX = 6 and RX = 5
-#define TX_PIN 17
-#define RX_PIN 18
+#define TX_PIN 6
+#define RX_PIN 5
 
 #define HOST_BAUD 9600
+#define MODBUS_BAUD 19200
 #define DEVICE_BAUD 115200
 
 // modbus initialization
-#define MODBUS_TX 6
-#define MODBUS_RX 5
-#define MODBUS_DE 4
+#define MODBUS_TX 7 // DI
+#define MODBUS_RX 15 // RO
+#define MODBUS_DE 42
 
 // to identify the esp32 for com port
 #define DEVICE_ID "DSI"
@@ -116,7 +117,7 @@ void setup() {
   Serial.begin(HOST_BAUD);
 
   // MODBUS RTU
-  Serial1.begin(DEVICE_BAUD, SERIAL_8N1, MODBUS_RX, MODBUS_TX);
+  Serial1.begin(MODBUS_BAUD, SERIAL_8N1, MODBUS_RX, MODBUS_TX);
 
   // RAW UART
   Serial2.begin(DEVICE_BAUD, SERIAL_8N1, RX_PIN, TX_PIN);
