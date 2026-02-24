@@ -123,17 +123,7 @@ void setup() {
   Serial2.begin(DEVICE_BAUD, SERIAL_8N1, RX_PIN, TX_PIN);
 
   // Wait for serial connection
-  while (!Serial) {
-    delay(10);
-  }
-
-  while (!Serial1) {
-    delay(10);
-  }
-
-  while(!Serial2) {
-    delay(10);
-  }
+  delay(500);
 
   // modbus rs485 direction control pin 
   pinMode(MODBUS_DE, OUTPUT);

@@ -5,9 +5,9 @@ ModbusProtocol::ModbusProtocol(uint8_t de_pin) : de_pin(de_pin)
 {
     config.slave_id = 1;
     config.func_code = 0x03;
-    config.address = 0;
+    config.address = 100;
     config.value_or_quantity = 1;
-    config.recalculate_crc = true;
+    config.recalculate_crc = false;
 
     if(!init())
     {
@@ -87,24 +87,25 @@ void ModbusProtocol::setModbusConfig(uint8_t slave_id, uint8_t func_code, uint16
 }
 
 // data_len is not used 
+// todo: for when the data is string
 void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
 {
-    if(data == nullptr)
-    {
-        Serial.println("[ModbusProtocol] NULL buffer provided!");
-        return;
-    }
+    //if(data == nullptr)
+    //{
+    //    Serial.println("[ModbusProtocol] NULL buffer provided!");
+    //    return;
+    //}
 
-    uint8_t* buffer = data;
+    // for string
+    uint8_t buffer[512];
     size_t frame_len = 0;
 
-    Serial.println();
-    Serial.println("╔════════════════════════════════════════════════════════════╗");
-    Serial.println("║                    MODBUS PROTOCOL                         ║");
-    Serial.println("╚════════════════════════════════════════════════════════════╝");
 
-    config.func_code = 0x05;
-    Serial.println("─────────────── RTU FRAME CONSTRUCTION ───────────────");
+    Serial.println();
+    Serial.println("--------------------------------------------------------------");
+    Serial.println("|                    MODBUS PROTOCOL                         |");
+    Serial.println("--------------------------------------------------------------");
+    Serial.println("-------------- RTU FRAME CONSTRUCTION --------------");
     // lets build the modbus frame
     buildModbusFrame(buffer, frame_len);
     Serial.printf("[ModbusProtocol] Built Modbus frame (no CRC yet):\n");
@@ -127,7 +128,7 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     buffer[frame_len++] = original_crc & 0xFF;
     buffer[frame_len++] = (original_crc >> 8) & 0xFF;
     Serial.println();
-    Serial.println("─────────────── CRC CALCULATION ───────────────");
+    Serial.println("-------------- CRC CALCULATION --------------");
     Serial.printf("[ModbusProtocol] Calculated CRC: 0x%04X\n", original_crc);
     Serial.print("  Raw Bytes Frame WITH CRC (debug): ");
     for (size_t i = 0; i < frame_len; i++) {
@@ -139,17 +140,33 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
 
     size_t injected_len = frame_len;
 
-    // give injector entire frame or just the payload
-    bool payload_only = false;
+    // give injector entire frame or just the payload (data)
+    bool payload_only = true;
+
+    // if payload only true
+    size_t new_injected_len = 2;
+
     if(injector != nullptr)
     {
-        Serial.println("─────────────── FAULT INJECTION ───────────────");
+        Serial.println("-------------- FAULT INJECTION ----------");
         Serial.println("[ModbusProtocol] Applying fault injection...");
         if(payload_only)
         {
-            injector->inject(&buffer[4], 2);
+            new_injected_len = injector->inject(&buffer[4], 2);
+            Serial.print(" CORRUPTED Frame AFTER injection (debug):");
+            for (size_t i = 0;i<new_injected_len;i++)
+            {
+                Serial.printf("%02X ", buffer[i]);
+            }
+            Serial.println();
         } else {
             injected_len = injector->inject(buffer, frame_len);
+            Serial.print(" CORRUPTED Frame AFTER injection (debug):");
+            for (size_t i = 0;i<injected_len;i++)
+            {
+                Serial.printf("%02X ", buffer[i]);
+            }
+            Serial.println();
         }
         if(injected_len > 512)
         {
@@ -157,13 +174,10 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
                          injected_len);
             injected_len = frame_len;
         }
-        Serial.print(" CORRUPTED Frame AFTER injection (debug):");
-        for (size_t i = 0;i<injected_len;i++)
-        {
-            Serial.printf("%02X ", buffer[i]);
-        }
-        Serial.println();
     }
+
+    //only if payload is true
+    size_t total_msg_len = 2 + 2 + new_injected_len;
 
     // check if we recalculate CRC mode or not
     if(config.recalculate_crc)
@@ -173,11 +187,12 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
         if(injected_len >= 2)
         {
             injected_len -=2;
-        }
+        } 
 
-        uint16_t new_crc = calculateCRC(buffer, injected_len);
-        buffer[injected_len++] = new_crc & 0xFF; // crc low 
-        buffer[injected_len++] = (new_crc >> 8) & 0xFF; // crc high
+        // todo: update when payload is not true
+        uint16_t new_crc = calculateCRC(buffer, total_msg_len);
+        buffer[total_msg_len++] = new_crc & 0xFF; // crc low 
+        buffer[total_msg_len++] = (new_crc >> 8) & 0xFF; // crc high
 
         Serial.printf("  New CRC: 0x%04X (recalculated on injected data)\n", new_crc);
     } else {
@@ -187,19 +202,19 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     // transmit using Modbus
     Serial.println();
     Serial.print("[ModbusProtocol] Final Frame: ");
-    for (size_t i = 0; i<injected_len;i++)
+    for (size_t i = 0; i<total_msg_len;i++)
     {
         Serial.printf("%02X ", buffer[i]);
     }
 
     Serial.println();
-    Serial.printf("[ModbusProtocol] Total: %d bytes\n", injected_len);
+    Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);
 
     // enable tx mode for rs-485
     digitalWrite(de_pin, HIGH);
     delay(1);
 
-    Serial1.write(buffer, injected_len);
+    Serial1.write(buffer, total_msg_len);
     Serial1.flush();
 
     delay(1);
@@ -208,7 +223,7 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     digitalWrite(de_pin, LOW);
 
     Serial.println("[ModbusProtocol] Transmitted to UUT via Serial1");
-    Serial.println("╚════════════════════════════════════════════════════════════╝");
+    Serial.println("--------------------------------------------------------------");
     Serial.println();
 }
 
@@ -224,6 +239,7 @@ int ModbusProtocol::receive(uint8_t* data, size_t max_len, uint32_t timeout_ms)
 bool ModbusProtocol::init()
 {
 
-
-    return false;
+    pinMode(de_pin, OUTPUT);
+    digitalWrite(de_pin, LOW);
+    return true;
 }
