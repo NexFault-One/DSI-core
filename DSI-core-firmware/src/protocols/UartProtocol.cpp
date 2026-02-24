@@ -24,12 +24,12 @@ void UartProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     Serial.println();
     if(data_len == 0)
     {
-      Serial.println("Payload is empty...");
+      Serial.println("[UARTProtocol] NULL buffer provided!");
       vTaskDelay(pdMS_TO_TICKS(200));
       return;
     }
     // start injection
-    Serial.print("[DSI] calling injector on ");
+    Serial.print("[UARTProtocol] calling injector on ");
     Serial.print(data_len);
     Serial.println(" bytes...");
     
@@ -37,7 +37,7 @@ void UartProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
 
     if(newlen > data_len)
     {
-      Serial.println("[DSI] injector returned invalid length, clamping...");
+      Serial.println("[UARTProtocol] injector returned invalid length, clamping...");
       newlen = data_len;
     }
 
