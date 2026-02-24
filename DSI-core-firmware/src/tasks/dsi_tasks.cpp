@@ -173,10 +173,10 @@ static void modbus_injector_task(void* pv)
           //
             //modbus.inject(injector.get(), buffer, len);
             //injection_count++;
-            auto bust_injector = createInjector(commands);
-            modbus.inject(bust_injector.get(), nullptr, 0);
+            auto burst_injector = createInjector(commands);
+            modbus.burst_inject(burst_injector.get());
           
-            vTaskDelay(pdMS_TO_TICKS(250));
+            vTaskDelay(pdMS_TO_TICKS(2));
           }
         }
         Serial.println("[DSI_CMD_TASK] Injection complete!");

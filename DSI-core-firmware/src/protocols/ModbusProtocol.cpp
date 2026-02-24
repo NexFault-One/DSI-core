@@ -226,6 +226,40 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     Serial.println("--------------------------------------------------------------");
     Serial.println();
 }
+void ModbusProtocol::burst_inject(Injector* injector)
+{
+    uint8_t buffer[512];
+    size_t frame_len = 0;
+
+    buildModbusFrame(buffer, frame_len); 
+
+    size_t new_injected_len = 2;
+    if(injector != nullptr) {
+        new_injected_len = injector->inject(&buffer[4], 2);
+    }
+
+    size_t total_msg_len = 4 + new_injected_len;
+
+    if(config.recalculate_crc) {
+        uint16_t new_crc = calculateCRC(buffer, total_msg_len);
+        buffer[total_msg_len++] = new_crc & 0xFF;
+        buffer[total_msg_len++] = (new_crc >> 8) & 0xFF;
+    }
+
+    digitalWrite(de_pin, HIGH);
+    // delay(1); // Keep this for hardware stability, but only if needed
+    Serial1.write(buffer, total_msg_len);
+    Serial1.flush();
+    digitalWrite(de_pin, LOW);
+    Serial.print("[ModbusProtocol] Final Frame: ");
+    for (size_t i = 0; i<total_msg_len;i++)
+    {
+        Serial.printf("%02X ", buffer[i]);
+    }
+
+    Serial.println();
+    Serial.println("[ModbusProtocol] Transmitted to UUT via Serial1");
+}
 
 int ModbusProtocol::receive(uint8_t* data, size_t max_len, uint32_t timeout_ms)
 {
