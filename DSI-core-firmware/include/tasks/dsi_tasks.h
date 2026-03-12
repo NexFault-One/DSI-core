@@ -14,7 +14,7 @@
 #include "protocols/UartProtocol.h"
 #include "protocols/ModbusProtocol.h"
 
-#define MODBUS_DE 4
+#define MODBUS_DE 42
 
 inline const char* getPayload(const nxf1_v1_DsiCommand& cmd)
 {

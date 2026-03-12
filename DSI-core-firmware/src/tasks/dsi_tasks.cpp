@@ -67,7 +67,7 @@ static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &comman
         Serial.println(command.params.phantom_byte.offset);
         Serial.print("Original message: ");
         Serial.println(command.params.phantom_byte.payload);
-        return std::make_unique<PhantomByteInjector>(PhantomByteMode::RANDOM, command.params.phantom_byte.byte_value, command.params.phantom_byte.offset);
+        return std::make_unique<PhantomByteInjector>(PhantomByteMode::MANUAL, command.params.phantom_byte.byte_value, command.params.phantom_byte.offset);
       }
     default:
         Serial.println("[DSI] Unknown injection type");
@@ -112,9 +112,9 @@ static void uart_injector_task(void *pv)
         nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
         if(xQueueReceive(queue, &commands, portMAX_DELAY) == pdTRUE)
         {
-            Serial.println("╔════════════════════════════════════════════════════════════╗");
-            Serial.println("║                   DIGITAL SIGNAL INJECTOR                  ║");
-            Serial.println("╚════════════════════════════════════════════════════════════╝");
+            Serial.println("--------------------------------------------------------------");
+            Serial.println("|                   DIGITAL SIGNAL INJECTOR                  |");
+            Serial.println("--------------------------------------------------------------");
             Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
             Serial.println("[DSI_CMD_TASK] PROTOCOL: UART");
             auto injector = createInjector(commands);
@@ -125,7 +125,7 @@ static void uart_injector_task(void *pv)
 
             Serial.println("[DSI_CMD_TASK] Injection complete!");
             vTaskDelay(pdMS_TO_TICKS(10));
-            Serial.println("╚════════════════════════════════════════════════════════════╝");
+            Serial.println("--------------------------------------------------------------");
         }
     }
 
@@ -140,39 +140,48 @@ static void modbus_injector_task(void* pv)
     nxf1_v1_DsiCommand commands = nxf1_v1_DsiCommand_init_zero;
     if(xQueueReceive(queue, &commands, portMAX_DELAY) == pdTRUE)
     {
-        Serial.println("╔════════════════════════════════════════════════════════════╗");
-        Serial.println("║                   DIGITAL SIGNAL INJECTOR                  ║");
-        Serial.println("╚════════════════════════════════════════════════════════════╝");
+        Serial.println("--------------------------------------------------------------");
+        Serial.println("|                   DIGITAL SIGNAL INJECTOR                  |");
+        Serial.println("--------------------------------------------------------------");
         Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
         Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS");
 
         uint32_t duration_ms = commands.duration_ms;
         auto injector = createInjector(commands);
 
+        modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+
         if(duration_ms == 0)
         {
-          uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-          size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
-          modbus.inject(injector.get(), buffer, len);
-        // duration injection
+          // sensor_value payload
+          modbus.inject(injector.get(), nullptr, 0);
+
+          // for string buffers/payload
+          //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+          //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+          //modbus.inject(injector.get(), buffer, len);
+        //// duration injection
         } else {
           Serial.printf("[DSI_CMD_TASK] starting injection for %d ms...\n", duration_ms);
           unsigned long start_time = millis();
           uint32_t injection_count = 0;
           while((millis()-start_time) < duration_ms)
           {
-            uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-            size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+            // for string payload only
+            //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
+            //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
+          //
+            //modbus.inject(injector.get(), buffer, len);
+            //injection_count++;
+            auto burst_injector = createInjector(commands);
+            modbus.burst_inject(burst_injector.get());
           
-            modbus.inject(injector.get(), buffer, len);
-           injection_count++;
-          
-            vTaskDelay(pdMS_TO_TICKS(10));
+            vTaskDelay(pdMS_TO_TICKS(2));
           }
         }
         Serial.println("[DSI_CMD_TASK] Injection complete!");
         vTaskDelay(pdMS_TO_TICKS(10));
-        Serial.println("╚════════════════════════════════════════════════════════════╝");
+        Serial.println("--------------------------------------------------------------");
     }
   }
 }
