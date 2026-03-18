@@ -144,18 +144,23 @@ static void modbus_injector_task(void* pv)
         Serial.println("|                   DIGITAL SIGNAL INJECTOR                  |");
         Serial.println("--------------------------------------------------------------");
         Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
-        Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS");
+        Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS RTU");
 
         uint32_t duration_ms = commands.duration_ms;
         auto injector = createInjector(commands);
 
-        modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+        modbus.setModbusConfig(commands.modbus_config.slave_id, commands.modbus_config.func_code,
+                              commands.modbus_config.address, commands.modbus_config.value_or_quantity, commands.modbus_config.recalculate_crc);
 
+        //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+        uint32_t run_id = 0;
         if(duration_ms == 0)
         {
-          // sensor_value payload
-          modbus.inject(injector.get(), nullptr, 0);
-
+          while(!commands.stop)
+          {
+            modbus.inject(injector.get(), nullptr, 0);
+            run_id++;
+          }
           // for string buffers/payload
           //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
           //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
@@ -173,9 +178,10 @@ static void modbus_injector_task(void* pv)
           //
             //modbus.inject(injector.get(), buffer, len);
             //injection_count++;
+            
             auto burst_injector = createInjector(commands);
             modbus.burst_inject(burst_injector.get());
-          
+            run_id++;
             vTaskDelay(pdMS_TO_TICKS(2));
           }
         }

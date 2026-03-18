@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "freertos/task.h"
 #include "tasks/dsi_tasks.h"
+#include "tasks/tmi_tasks.h"
 
 // nizar esp pins
 #define TX_PIN_NZ 17
@@ -84,7 +85,7 @@ void DSI_Waveform_Task(void *pvParameters) {
   start_dsi_tasks();
 
   // start TMI specific taks that will report data
-  //start_tmi_tasks(void);
+  start_tmi_tasks();
 
   // start Modbus tasks that deals with modbus injections
   //start_modbus_tasks(modbusInjectorQueue);
