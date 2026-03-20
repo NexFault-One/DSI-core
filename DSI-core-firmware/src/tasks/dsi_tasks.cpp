@@ -150,7 +150,8 @@ static void modbus_injector_task(void* pv)
         auto injector = createInjector(commands);
 
         modbus.setModbusConfig(commands.modbus_config.slave_id, commands.modbus_config.func_code,
-                              commands.modbus_config.address, commands.modbus_config.value_or_quantity, commands.modbus_config.recalculate_crc);
+                              commands.modbus_config.address, commands.modbus_config.value_or_quantity, 
+                              commands.modbus_config.recalculate_crc);
 
         //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
         uint32_t run_id = 0;
@@ -178,7 +179,7 @@ static void modbus_injector_task(void* pv)
           //
             //modbus.inject(injector.get(), buffer, len);
             //injection_count++;
-            
+
             auto burst_injector = createInjector(commands);
             modbus.burst_inject(burst_injector.get());
             run_id++;

@@ -84,11 +84,6 @@ void DSI_Waveform_Task(void *pvParameters) {
   // start the DSI specific tasks that deal with protobuf decoding and injecting for UART
   start_dsi_tasks();
 
-  // start TMI specific taks that will report data
-  start_tmi_tasks();
-
-  // start Modbus tasks that deals with modbus injections
-  //start_modbus_tasks(modbusInjectorQueue);
 
   for (;;) {
     // Add your waveform generation logic here
@@ -103,6 +98,9 @@ void DSI_Waveform_Task(void *pvParameters) {
 void DSI_TMI_Task(void *pvParameters) {
   Serial.println("DSI_TMI task started on Core " + String(xPortGetCoreID()));
   
+  // start TMI specific taks that will report data
+  start_tmi_tasks();
+
   for (;;) {
     // Add your TMI (Telemetry, Monitoring, Interface) logic here
     //Serial.println("DSI_TMI running on Core " + String(xPortGetCoreID()));

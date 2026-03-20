@@ -30,8 +30,8 @@ inline const char* getPayload(const nxf1_v1_DsiCommand& cmd)
             return "";
     }
 }
-static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command);
-static void dsi_cmd_task(void *pv);
-static void uart_injector_task(void *pv);
-static void modbus_injector_task(void* pv);
+//static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command);
+//static void dsi_cmd_task(void *pv);
+//static void uart_injector_task(void *pv);
+//static void modbus_injector_task(void* pv);
 void start_dsi_tasks();
