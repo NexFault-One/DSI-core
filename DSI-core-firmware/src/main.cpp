@@ -98,6 +98,7 @@ void DSI_Waveform_Task(void *pvParameters) {
 void DSI_TMI_Task(void *pvParameters) {
   Serial.println("DSI_TMI task started on Core " + String(xPortGetCoreID()));
   
+  TMI_Init();
   // start TMI specific taks that will report data
   start_tmi_tasks();
 
