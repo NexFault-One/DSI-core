@@ -33,7 +33,9 @@ size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len)
     if (actual_drop == 0) {
         return data_len;
     }
-
+    TMI_LockReport();
+    tmi_data.report.bytes_dropped = numBytes;
+    TMI_UnlockReport();
     Serial.printf("[ByteDropInjector] in=%u, every_n=%u, numBytes=%u, drop_index=%u\n",
                   (unsigned)data_len, (unsigned)every_n, (unsigned)numBytes, (unsigned)drop_index);
 

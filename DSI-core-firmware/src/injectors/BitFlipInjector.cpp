@@ -68,7 +68,9 @@ size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
         // Bound number of flips to total bits so we don't attempt impossible unique flips
         uint32_t flips_to_do = num_flips;
         if (flips_to_do > total_bits) flips_to_do = (uint32_t)total_bits;
-
+        TMI_LockReport();
+        tmi_data.report.bits_flipped = num_flips;
+        TMI_UnlockReport();
         Serial.printf("[BitFlipInjector] RANDOM mode flipping %u bits\n", (unsigned)flips_to_do);
 
         // We'll avoid flipping the same bit twice by tracking a small bitmap of visited bits.

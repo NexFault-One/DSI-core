@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <Arduino.h>
+#include "tasks/tmi_tasks.h"
 
 class Injector
 {
