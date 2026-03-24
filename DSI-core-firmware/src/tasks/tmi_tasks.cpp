@@ -272,8 +272,9 @@ static void tmi_reporter_task(void* pv)
             envelope.report.status = tmi_data.report.status;
             envelope.report.verdict = tmi_data.report.verdict;
             envelope.report.reason = tmi_data.report.reason;
-            strncpy(envelope.report.verdict_message, tmi_data.report.verdict_message, 128);
-            
+            // verdict_message is pb_callback_t, not char[]
+            envelope.report.verdict_message.funcs.encode = protobuf_encode_string;
+            envelope.report.verdict_message.arg = (void*)tmi_data.report.verdict_message;            
             TMI_UnlockReport();
             
             // send envelope to host
