@@ -350,7 +350,7 @@ static void calculate_final_verdict()
 
 static bool is_modbus_error_response(uint8_t* response, size_t len)
 {
-    if(!len >= 3) {
+    if(len < 3) {
         return false; // too short to be valid
     }
     
