@@ -124,7 +124,7 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     }
     Serial.println();
 
-    // lets add the CRC to the original message
+    // add the CRC to the original message
     uint16_t original_crc = calculateCRC(buffer, frame_len);
     buffer[frame_len++] = original_crc & 0xFF;
     buffer[frame_len++] = (original_crc >> 8) & 0xFF;

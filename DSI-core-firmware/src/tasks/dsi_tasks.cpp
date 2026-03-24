@@ -146,6 +146,13 @@ static void modbus_injector_task(void* pv)
         Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
         Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS RTU");
 
+        TMI_ResetReport(commands.id);
+        TMI_LockReport();
+        tmi_data.report.transport_type = commands.transport;
+        tmi_data.report.injection_type = commands.inj_type;
+        tmi_data.report.crc_recalculated = commands.modbus_config.recalculate_crc;
+        TMI_UnlockReport();
+
         uint32_t duration_ms = commands.duration_ms;
         auto injector = createInjector(commands);
 
@@ -154,12 +161,22 @@ static void modbus_injector_task(void* pv)
                               commands.modbus_config.recalculate_crc);
 
         //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+        TMI_StartTest();
+
         uint32_t run_id = 0;
         if(duration_ms == 0)
         {
           while(!commands.stop)
           {
             modbus.inject(injector.get(), nullptr, 0);
+            InjectionEvent inj_event;
+            inj_event.inj_type = commands.inj_type;
+            inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
+            inj_event.bytes_sent = 8;
+            inj_event.frame_id = tmi_data.next_frame_id++;
+
+            xQueueSend(injection_event_queue, &inj_event, 0);
+
             run_id++;
           }
           // for string buffers/payload
@@ -182,10 +199,20 @@ static void modbus_injector_task(void* pv)
 
             auto burst_injector = createInjector(commands);
             modbus.burst_inject(burst_injector.get());
+
+            InjectionEvent inj_event;
+            inj_event.inj_type = commands.inj_type;
+            inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
+            inj_event.bytes_sent = 8;
+            inj_event.frame_id = tmi_data.next_frame_id++;
+
+            xQueueSend(injection_event_queue, &inj_event, 0);
             run_id++;
             vTaskDelay(pdMS_TO_TICKS(2));
           }
         }
+        TMI_StopTest();
+        
         Serial.println("[DSI_CMD_TASK] Injection complete!");
         vTaskDelay(pdMS_TO_TICKS(10));
         Serial.println("--------------------------------------------------------------");
