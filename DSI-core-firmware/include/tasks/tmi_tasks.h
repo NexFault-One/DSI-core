@@ -22,6 +22,7 @@ typedef struct {
     nxf1_v1_InjectionType inj_type;
     uint32_t bytes_sent;
     uint32_t frame_id;
+    uint32_t run_id;
 } InjectionEvent;
 
 // TMI report structure (matches protobuf TmiReport)

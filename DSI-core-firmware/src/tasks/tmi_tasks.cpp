@@ -140,6 +140,7 @@ static void tmi_monitoring_task(void* pv)
             tmi_data.report.bytes_transmitted += event.bytes_sent;
             tmi_data.report.bytes_received += resp_len;
             tmi_data.report.frames_sent++;
+            tmi_data.report.run_id = event.run_id;
             
             // classify response
             if(resp_len == 0) {

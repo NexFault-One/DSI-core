@@ -163,7 +163,7 @@ static void modbus_injector_task(void* pv)
         //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
         TMI_StartTest();
 
-        uint32_t run_id = 0;
+        uint32_t run_id = 1;
         if(duration_ms == 0)
         {
           while(!commands.stop)
@@ -174,7 +174,7 @@ static void modbus_injector_task(void* pv)
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
             inj_event.bytes_sent = 8;
             inj_event.frame_id = tmi_data.next_frame_id++;
-
+            inj_event.run_id = run_id;
             xQueueSend(injection_event_queue, &inj_event, 0);
 
             run_id++;
@@ -205,7 +205,7 @@ static void modbus_injector_task(void* pv)
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
             inj_event.bytes_sent = 8;
             inj_event.frame_id = tmi_data.next_frame_id++;
-
+            inj_event.run_id = run_id;
             xQueueSend(injection_event_queue, &inj_event, 0);
             run_id++;
             vTaskDelay(pdMS_TO_TICKS(2));
