@@ -290,7 +290,7 @@ static void tmi_reporter_task(void* pv)
             Serial.println("--------------------------------------------------------------");
             Serial.printf("Test ID: %u\n", envelope.report.id);
             Serial.printf("Duration: %u ms\n", envelope.report.injection_duration_ms);
-            Serial.printf("Verdict: %s\n", envelope.report.verdict_message);
+            Serial.printf("Verdict: %s\n", tmi_data.report.verdict_message);
             Serial.println("--------------------------------------------------------------");
             Serial.printf("Frames sent: %u\n", envelope.report.frames_sent);
             Serial.printf("Responses OK: %u (%.1f%%)\n", envelope.report.responses_ok, 
@@ -395,7 +395,7 @@ void start_tmi_tasks()
     }
     
     xTaskCreate(tmi_monitoring_task, "TMI_MON", 4096, NULL, 3, NULL);
-    xTaskCreate(tmi_reporter_task, "TMI_REPORT", 2048, NULL, 2, NULL);
+    xTaskCreate(tmi_reporter_task, "TMI_REPORT", 6144, NULL, 2, NULL);
     
     Serial.println("[TMI] Tasks started successfully");
 }
