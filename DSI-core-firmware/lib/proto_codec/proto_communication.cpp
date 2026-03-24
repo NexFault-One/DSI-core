@@ -10,11 +10,19 @@ bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* 
     {
         return false;
     }
-    serial->write(buffer, stream.bytes_written);
 
+    uint16_t len = (uint16_t)stream.bytes_written;
+    if (len == 0 || len > PROTOBUF_BUFFER_SIZE) return false;
+
+    // length prefix (little-endian)
+    uint8_t prefix[2];
+    prefix[0] = (uint8_t)(len & 0xFF);
+    prefix[1] = (uint8_t)((len >> 8) & 0xFF);
+
+    serial->write(prefix, 2);
+    serial->write(buffer, len);
     serial->flush();
     return true;
-
 }
 
 bool protobuf_receive(HardwareSerial* serial, void* msg, const pb_msgdesc_t* fields)
