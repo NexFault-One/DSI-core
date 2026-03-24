@@ -4,10 +4,10 @@
 #include <stdio.h>
 #include <Arduino.h>
 #include "pb_decode.h"
-#include "dsi_message.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "proto_codec/proto_communication.h"
 #include "proto_msgs/uart_data.pb.h"
 #include "injectors/ByteDropInjector.h"
 #include "injectors/BitFlipInjector.h"
