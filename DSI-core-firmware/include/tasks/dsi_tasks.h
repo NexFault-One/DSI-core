@@ -4,15 +4,16 @@
 #include <stdio.h>
 #include <Arduino.h>
 #include "pb_decode.h"
-#include "dsi_message.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "proto_codec/proto_communication.h"
 #include "proto_msgs/uart_data.pb.h"
 #include "injectors/ByteDropInjector.h"
 #include "injectors/BitFlipInjector.h"
 #include "injectors/PhantomByteInjector.h"
 #include "protocols/UartProtocol.h"
 #include "protocols/ModbusProtocol.h"
+#include "tasks/tmi_tasks.h"
 
 #define MODBUS_DE 42
 
@@ -30,8 +31,8 @@ inline const char* getPayload(const nxf1_v1_DsiCommand& cmd)
             return "";
     }
 }
-static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command);
-static void dsi_cmd_task(void *pv);
-static void uart_injector_task(void *pv);
-static void modbus_injector_task(void* pv);
+//static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command);
+//static void dsi_cmd_task(void *pv);
+//static void uart_injector_task(void *pv);
+//static void modbus_injector_task(void* pv);
 void start_dsi_tasks();

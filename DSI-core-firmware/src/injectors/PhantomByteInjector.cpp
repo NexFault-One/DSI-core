@@ -5,6 +5,7 @@ PhantomByteInjector::PhantomByteInjector(PhantomByteMode mode, uint32_t phantom_
 
 size_t PhantomByteInjector::inject(uint8_t* buffer, size_t data_len)
 {
+    TMI_AddPhantomBytes(phantom_byte);
     if(buffer == nullptr)
     {
         Serial.println("[PhantomByteInjector] Error: buffer is null");

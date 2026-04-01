@@ -144,18 +144,41 @@ static void modbus_injector_task(void* pv)
         Serial.println("|                   DIGITAL SIGNAL INJECTOR                  |");
         Serial.println("--------------------------------------------------------------");
         Serial.println("[DSI_CMD_TASK] DSI Commands Received!");
-        Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS");
+        Serial.println("[DSI_CMD_TASK] PROTOCOL: MODBUS RTU");
+
+        TMI_ResetReport(commands.id);
+        TMI_LockReport();
+        tmi_data.report.transport_type = commands.transport;
+        tmi_data.report.injection_type = commands.inj_type;
+        tmi_data.report.crc_recalculated = commands.modbus_config.recalculate_crc;
+        TMI_UnlockReport();
 
         uint32_t duration_ms = commands.duration_ms;
         auto injector = createInjector(commands);
 
-        modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+        modbus.setModbusConfig(commands.modbus_config.slave_id, commands.modbus_config.func_code,
+                              commands.modbus_config.address, commands.modbus_config.value_or_quantity, 
+                              commands.modbus_config.recalculate_crc);
 
+        //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
+        TMI_StartTest();
+
+        uint32_t run_id = 1;
         if(duration_ms == 0)
         {
-          // sensor_value payload
-          modbus.inject(injector.get(), nullptr, 0);
+          while(!commands.stop)
+          {
+            modbus.inject(injector.get(), nullptr, 0);
+            InjectionEvent inj_event;
+            inj_event.inj_type = commands.inj_type;
+            inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
+            inj_event.bytes_sent = 8;
+            inj_event.frame_id = tmi_data.next_frame_id++;
+            inj_event.run_id = run_id;
+            xQueueSend(injection_event_queue, &inj_event, 0);
 
+            run_id++;
+          }
           // for string buffers/payload
           //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
           //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
@@ -173,12 +196,23 @@ static void modbus_injector_task(void* pv)
           //
             //modbus.inject(injector.get(), buffer, len);
             //injection_count++;
+
             auto burst_injector = createInjector(commands);
             modbus.burst_inject(burst_injector.get());
-          
+
+            InjectionEvent inj_event;
+            inj_event.inj_type = commands.inj_type;
+            inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
+            inj_event.bytes_sent = 8;
+            inj_event.frame_id = tmi_data.next_frame_id++;
+            inj_event.run_id = run_id;
+            xQueueSend(injection_event_queue, &inj_event, 0);
+            run_id++;
             vTaskDelay(pdMS_TO_TICKS(2));
           }
         }
+        TMI_StopTest();
+        
         Serial.println("[DSI_CMD_TASK] Injection complete!");
         vTaskDelay(pdMS_TO_TICKS(10));
         Serial.println("--------------------------------------------------------------");

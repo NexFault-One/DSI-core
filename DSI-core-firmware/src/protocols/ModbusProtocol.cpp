@@ -3,6 +3,7 @@
 
 ModbusProtocol::ModbusProtocol(uint8_t de_pin) : de_pin(de_pin)
 {
+    // default values
     config.slave_id = 1;
     config.func_code = 0x03;
     config.address = 100;
@@ -123,7 +124,7 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     }
     Serial.println();
 
-    // lets add the CRC to the original message
+    // add the CRC to the original message
     uint16_t original_crc = calculateCRC(buffer, frame_len);
     buffer[frame_len++] = original_crc & 0xFF;
     buffer[frame_len++] = (original_crc >> 8) & 0xFF;
@@ -226,6 +227,8 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     Serial.println("--------------------------------------------------------------");
     Serial.println();
 }
+// only removes the logs for now
+// TODO: make it send a bunch of X injections (burst count) simultaneously
 void ModbusProtocol::burst_inject(Injector* injector)
 {
     uint8_t buffer[512];

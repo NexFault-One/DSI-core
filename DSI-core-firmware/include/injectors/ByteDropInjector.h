@@ -11,4 +11,5 @@ public:
 private:
     uint32_t numBytes;
     uint32_t every_n;
+    uint32_t total_bytes_dropped;
 };

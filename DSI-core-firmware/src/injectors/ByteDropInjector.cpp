@@ -1,5 +1,4 @@
 #include "injectors/ByteDropInjector.h"
-#include <Arduino.h>
 
 
 ByteDropInjector::ByteDropInjector(uint32_t numBytes, uint32_t every_n) : numBytes(numBytes), every_n(every_n)
@@ -33,7 +32,7 @@ size_t ByteDropInjector::inject(uint8_t* buffer, size_t data_len)
     if (actual_drop == 0) {
         return data_len;
     }
-
+    TMI_AddBytesDropped(numBytes);
     Serial.printf("[ByteDropInjector] in=%u, every_n=%u, numBytes=%u, drop_index=%u\n",
                   (unsigned)data_len, (unsigned)every_n, (unsigned)numBytes, (unsigned)drop_index);
 
