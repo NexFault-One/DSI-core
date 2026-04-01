@@ -15,7 +15,7 @@
 #include "protocols/UartProtocol.h"
 #include "protocols/ModbusProtocol.h"
 
-#define MODBUS_DE 42
+#define MODBUS_DE 47
 // data sent from dsi (core 0) to tmi (core 1)
 typedef struct {
     nxf1_v1_TransportType transport;

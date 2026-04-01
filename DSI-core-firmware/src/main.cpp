@@ -10,18 +10,18 @@
 #define TX_PIN_NZ 17
 #define RX_PIN_NZ 18
 
-// prototype pins, for real product. TX = 6 and RX = 5
-#define TX_PIN 6
-#define RX_PIN 5
+// prototype pins, for real product. TX = 45 and RX = 48
+#define TX_PIN 45
+#define RX_PIN 48
 
 #define HOST_BAUD 9600
 #define MODBUS_BAUD 19200
 #define DEVICE_BAUD 115200
 
 // modbus initialization
-#define MODBUS_TX 7 // DI
-#define MODBUS_RX 15 // RO
-#define MODBUS_DE 42
+#define MODBUS_TX 45 // DI
+#define MODBUS_RX 48 // RO
+#define MODBUS_DE 47
 
 // to identify the esp32 for com port
 #define DEVICE_ID "DSI"
