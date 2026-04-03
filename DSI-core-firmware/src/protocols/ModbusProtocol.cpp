@@ -200,13 +200,40 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
         Serial.println("[ModbusProtocol] Mode: Keep corrupted CRC");
     }
 
-    // transmit using Modbus
+    // transmit using Modbus & storing for protobuf
     Serial.println();
+    char final_frame[128];
+    memset(final_frame, 0, sizeof(final_frame));
+    size_t offset = 0;
     Serial.print("[ModbusProtocol] Final Frame: ");
     for (size_t i = 0; i<total_msg_len;i++)
     {
         Serial.printf("%02X ", buffer[i]);
+        // storing into final_frame variable for protobuf
+        int written = snprintf(&final_frame[offset], sizeof(final_frame) - offset, "%02X ", buffer[i]);
+        if (written) < 0
+            break;
+        if((size_t)written >= (sizeof(final_frame) - offset))
+        {
+            offset = sizeof(final_frame) - 1;
+            break;
+        }
+        offset += (size_t)written;
     }
+    if(offset > 0 && final_frame[offset-1] == ' ')
+    {
+        final_frame[offset-1] = '\0';
+    } else {
+        final_frame[sizeof(final_frame)-1] = '\0';
+    }
+    
+    // copying into protobuf
+    TMI_LockReport();
+    strncpy(tmi_data.report.final_frame, final_frame, sizeof(tmi_data.report.final_frame));
+    tmi_data.report.final_frame[sizeof(tmi_data.report.final_frame)-1] = '\0';
+    // total bytes sent
+    tmi_data.report.bytes_transmitted = total_msg_len;
+    TMI_UnlockReport();
 
     Serial.println();
     Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);

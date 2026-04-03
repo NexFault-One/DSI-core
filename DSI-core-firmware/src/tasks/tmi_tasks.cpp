@@ -137,7 +137,7 @@ static void tmi_monitoring_task(void* pv)
             TMI_LockReport();
             
             // traffic counters
-            tmi_data.report.bytes_transmitted += event.bytes_sent;
+            //tmi_data.report.bytes_transmitted += event.bytes_sent; it is being set by ModbusProtocol.cpp
             tmi_data.report.bytes_received += resp_len;
             tmi_data.report.frames_sent++;
             tmi_data.report.run_id = event.run_id;
@@ -252,6 +252,7 @@ static void tmi_reporter_task(void* pv)
             
             // frame stats
             envelope.report.frames_sent = tmi_data.report.frames_sent;
+            envelope.report.final_frame = tmi_data.report.final_frame;
             envelope.report.responses_ok = tmi_data.report.responses_ok;
             envelope.report.responses_error = tmi_data.report.responses_error;
             envelope.report.responses_timeout = tmi_data.report.responses_timeout;
@@ -294,6 +295,7 @@ static void tmi_reporter_task(void* pv)
             Serial.printf("Verdict: %s\n", tmi_data.report.verdict_message);
             Serial.println("--------------------------------------------------------------");
             Serial.printf("Frames sent: %u\n", envelope.report.frames_sent);
+            Serial.printf("CRC Final Frame: %u\n", envelope.report.final_frame);
             Serial.printf("Responses OK: %u (%.1f%%)\n", envelope.report.responses_ok, 
                          (float)envelope.report.responses_ok / envelope.report.frames_sent * 100);
             Serial.printf("Responses ERROR: %u (%.1f%%)\n", envelope.report.responses_error,

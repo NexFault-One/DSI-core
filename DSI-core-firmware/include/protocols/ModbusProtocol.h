@@ -2,6 +2,7 @@
 
 #include <ModbusRTU.h>
 #include "Protocol.h"
+#include "tmi_tasks.h"
 
 #define REG 0
 

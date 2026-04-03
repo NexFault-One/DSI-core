@@ -172,7 +172,7 @@ static void modbus_injector_task(void* pv)
             InjectionEvent inj_event;
             inj_event.inj_type = commands.inj_type;
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
-            inj_event.bytes_sent = 8;
+            //inj_event.bytes_sent = 8; it is being set inside ModbusProtocol.cpp
             inj_event.frame_id = tmi_data.next_frame_id++;
             inj_event.run_id = run_id;
             xQueueSend(injection_event_queue, &inj_event, 0);
