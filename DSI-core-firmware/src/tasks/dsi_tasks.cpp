@@ -9,8 +9,6 @@ extern "C" {
 QueueHandle_t uartQueue;
 QueueHandle_t modbusQueue;
 
-// use dsi_message.h later when multiple transport protocols are used instead of passing raw buffers of decoded protobuf msgs
-
 // create the Injector pointer for the corresponding injection type selected
 static std::unique_ptr<Injector> createInjector(const nxf1_v1_DsiCommand &command)
 {
@@ -160,7 +158,6 @@ static void modbus_injector_task(void* pv)
                               commands.modbus_config.address, commands.modbus_config.value_or_quantity, 
                               commands.modbus_config.recalculate_crc);
 
-        //modbus.setModbusConfig(1, 0x06, 100, (uint16_t)commands.sensor_value, true);
         TMI_StartTest();
 
         uint32_t run_id = 1;
@@ -173,7 +170,6 @@ static void modbus_injector_task(void* pv)
             InjectionEvent inj_event;
             inj_event.inj_type = commands.inj_type;
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
-            //inj_event.bytes_sent = 8; it is being set inside ModbusProtocol.cpp
             inj_event.frame_id = tmi_data.next_frame_id++;
             inj_event.run_id = run_id;
             if(xQueueSend(injection_event_queue, &inj_event, 0) != pdTRUE)
@@ -186,32 +182,22 @@ static void modbus_injector_task(void* pv)
 
             run_id++;
           }
-          // for string buffers/payload
-          //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-          //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
-          //modbus.inject(injector.get(), buffer, len);
         //// duration injection
         } else {
           Serial.printf("[DSI_CMD_TASK] starting injection for %d ms...\n", duration_ms);
           unsigned long start_time = millis();
-          uint32_t injection_count = 0;
           while((millis()-start_time) < duration_ms)
           {
-            // for string payload only
-            //uint8_t buffer[PROTOBUF_BUFFER_SIZE];
-            //size_t len = snprintf((char*)buffer, sizeof(buffer), "%s", getPayload(commands));
-          //
-            //modbus.inject(injector.get(), buffer, len);
-            //injection_count++;
-
+            unsigned long injection_start_time = millis();
             auto burst_injector = createInjector(commands);
-            unsigned long start_time_injection = 0;
             modbus.burst_inject(burst_injector.get());
-            tmi_data.report.injection_duration_ms = millis()-start_time_injection;
+            TMI_LockReport();
+            tmi_data.report.injection_duration_ms = millis()-injection_start_time;
+            TMI_UnlockReport();
+
             InjectionEvent inj_event;
             inj_event.inj_type = commands.inj_type;
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
-            //inj_event.bytes_sent = 8; it is being set in modbusprotocol.cpp
             inj_event.frame_id = tmi_data.next_frame_id++;
             inj_event.run_id = run_id;
             inj_event.attempt_no = 1;
@@ -223,10 +209,15 @@ static void modbus_injector_task(void* pv)
               Serial.println("[DSI_CMD_TASK] WARNING: injection_event_queue full, event dropped");
             }
             run_id++;
-            tmi_data.report.status = nxf1_v1_ExecStatus_STATUS_DONE;
-            vTaskDelay(pdMS_TO_TICKS(2));
+
+            // REMOVED: tmi_data.report.status = nxf1_v1_ExecStatus_STATUS_DONE;
+            // Status is set to DONE only in TMI_StopTest() after all injections complete.
+
+            vTaskDelay(pdMS_TO_TICKS(20));
           }
         }
+
+        // injection_duration_ms is set inside TMI_StopTest() from elapsed time
         TMI_StopTest();
         
         Serial.println("[DSI_CMD_TASK] Injection complete!");

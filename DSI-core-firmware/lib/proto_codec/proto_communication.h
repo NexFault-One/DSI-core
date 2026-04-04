@@ -7,7 +7,7 @@
 #include "pb.h"
 #include "injectors/Injector.h"
 
-#define PROTOBUF_BUFFER_SIZE 128
+#define PROTOBUF_BUFFER_SIZE 2048
 
 // non callback protobuf messages (integers etc..)
 bool protobuf_send(HardwareSerial* serial, const void* msg, const pb_msgdesc_t* fields);

@@ -57,6 +57,7 @@ size_t BitFlipInjector::inject(uint8_t* buffer, size_t data_len)
             // stop if next increment would overflow (guard)
             if (bit + every_n < bit) break;
         }
+        TMI_AddBitsFlipped(flipped);
         Serial.printf("[BitFlipInjector] PERIODIC flipped total: %u\n", (unsigned)flipped);
     }
     else { // RANDOM

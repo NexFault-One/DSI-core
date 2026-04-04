@@ -39,7 +39,6 @@ void TMI_Init()
     }
 
     tmi_data.test_active = false;
-    tmi_data.final_report_sent = false;
     tmi_data.test_start_time = 0;
     tmi_data.next_frame_id = 0;
 
@@ -68,8 +67,6 @@ void TMI_ResetReport(uint32_t command_id)
     tmi_data.report.verdict = nxf1_v1_TestVerdict_VERDICT_UNSET;
     tmi_data.report.reason = nxf1_v1_FailureReason_FAIL_NONE;
     
-    tmi_data.report.attempt_no = 1;
-    tmi_data.final_report_sent = false;
     tmi_data.next_frame_id = 0;
     
     TMI_UnlockReport();
@@ -82,8 +79,6 @@ void TMI_StartTest()
     TMI_LockReport();
     tmi_data.test_active = true;
     tmi_data.test_start_time = millis();
-    tmi_data.final_report_sent = false;
-    tmi_data.report.status = nxf1_v1_ExecStatus_STATUS_RUNNING;
     TMI_UnlockReport();
 
     Serial.println("[TMI_SHARED] Test started!");
@@ -94,8 +89,7 @@ void TMI_StopTest()
     TMI_LockReport();
     tmi_data.test_active = false;
     uint32_t duration = millis() - tmi_data.test_start_time;
-    tmi_data.report.injection_duration_ms = duration;
-    tmi_data.report.status = nxf1_v1_ExecStatus_STATUS_DONE;
+    //tmi_data.report.injection_duration_ms = duration;
     TMI_UnlockReport();
 
     Serial.printf("[TMI_SHARED] Test stopped! Duration: %u ms \n", duration);
@@ -129,25 +123,24 @@ static void tmi_monitoring_task(void* pv)
             uint32_t response_time = millis() - start_time;
             
             // print what we received
-            //if(resp_len > 0) {
-            //    Serial.print("[TMI_MON] Received response: ");
-            //    for(size_t i = 0; i < resp_len; i++) {
-            //        Serial.printf("%02X ", response[i]);
-            //    }
-            //    Serial.println();
-            //} else {
-            //    Serial.println("[TMI_MON] TIMEOUT - no response");
-            //}
+            if(resp_len > 0) {
+                Serial.print("[TMI_MON] Received response: ");
+                for(size_t i = 0; i < resp_len; i++) {
+                    Serial.printf("%02X ", response[i]);
+                }
+                Serial.println();
+            } else {
+                Serial.println("[TMI_MON] TIMEOUT - no response");
+            }
             
             // update ALL stats (mutex protected)
             TMI_LockReport();
             
             // traffic counters
-            //tmi_data.report.bytes_transmitted += event.bytes_sent; it is being set by ModbusProtocol.cpp
+            //tmi_data.report.bytes_transmitted += event.bytes_sent;
             tmi_data.report.bytes_received += resp_len;
             tmi_data.report.frames_sent++;
             tmi_data.report.run_id = event.run_id;
-            tmi_data.report.attempt_no = event.attempt_no;
             
             // classify response
             if(resp_len == 0) {
@@ -200,40 +193,14 @@ static void tmi_monitoring_task(void* pv)
             
             TMI_UnlockReport();
             
-            if(tmi_data.test_active)
-            {
-                uint32_t signal = 1;
-                if(xQueueSend(report_ready_queue, &signal, 0) != pdTRUE)
-                {
-                    Serial.println("[TMI_MON] Report queue full = running snapshot dropped");
-                    TMI_LockReport();
-                    tmi_data.report.queue_drop_count++;
-                    TMI_UnlockReport();
-                }
-            }
-
             // check if test is complete
-            if(!tmi_data.test_active && uxQueueMessagesWaiting(injection_event_queue) == 0) {
-                TMI_LockReport();
-                bool final_already_sent = tmi_data.final_report_sent;
-                if(!final_already_sent) {
-                    tmi_data.final_report_sent = true;
-                }
-                TMI_UnlockReport();
-
-                if(!final_already_sent) {
-                    Serial.println("[TMI_MON] Test complete! Calculating verdict...");
-                    calculate_final_verdict();
-
-                    uint32_t signal = 1;
-                    if(xQueueSend(report_ready_queue, &signal, 0) != pdTRUE) {
-                        Serial.println("[TMI_MON] ERROR: Failed to queue final report signal");
-                        TMI_LockReport();
-                        tmi_data.report.queue_drop_count++;
-                        TMI_UnlockReport();
-                    }
-                    
-                }
+            if(!tmi_data.test_active) {
+                Serial.println("[TMI_MON] Test complete! Calculating verdict...");
+                calculate_final_verdict();
+                
+                // signal reporter task
+                uint32_t signal = 1;
+                xQueueSend(report_ready_queue, &signal, 0);
             }
         }
     }
@@ -285,11 +252,13 @@ static void tmi_reporter_task(void* pv)
             
             // frame stats
             envelope.report.frames_sent = tmi_data.report.frames_sent;
-            std::string str_final_frame(tmi_data.report.final_frame);
+            // frame stats
+            envelope.report.frames_sent = tmi_data.report.frames_sent;
             memcpy(envelope.report.final_frame,
-            tmi_data.report.final_frame,
-            sizeof(envelope.report.final_frame));
+                   tmi_data.report.final_frame,
+                   sizeof(envelope.report.final_frame));
             envelope.report.final_frame[sizeof(envelope.report.final_frame) - 1] = '\0';
+            envelope.report.responses_ok = tmi_data.report.responses_ok;
             envelope.report.responses_ok = tmi_data.report.responses_ok;
             envelope.report.responses_error = tmi_data.report.responses_error;
             envelope.report.responses_timeout = tmi_data.report.responses_timeout;
@@ -308,7 +277,7 @@ static void tmi_reporter_task(void* pv)
             envelope.report.queue_drop_count = tmi_data.report.queue_drop_count;
             
             // outcome
-            envelope.report.status = nxf1_v1_ExecStatus_STATUS_DONE;
+            envelope.report.status = tmi_data.report.status;
             envelope.report.verdict = tmi_data.report.verdict;
             envelope.report.reason = tmi_data.report.reason;
             // verdict_message is pb_callback_t, not char[]
@@ -322,19 +291,16 @@ static void tmi_reporter_task(void* pv)
             } else {
                 Serial.println("[TMI_REPORT] ERROR: Failed to send report");
             }
-            //TMI_LockReport();
-            //// print summary to console
+            
+            // print summary to console
             //Serial.println("--------------------------------------------------------------");
             //Serial.println("|                    TMI FINAL REPORT                        |");
             //Serial.println("--------------------------------------------------------------");
             //Serial.printf("Test ID: %u\n", envelope.report.id);
-            //Serial.printf("Run ID: %u\n", envelope.report.run_id);
-            //Serial.printf("Attempt No: %u\n", envelope.report.attempt_no);
             //Serial.printf("Duration: %u ms\n", envelope.report.injection_duration_ms);
             //Serial.printf("Verdict: %s\n", tmi_data.report.verdict_message);
             //Serial.println("--------------------------------------------------------------");
             //Serial.printf("Frames sent: %u\n", envelope.report.frames_sent);
-            //Serial.printf("CRC Final Frame: %s\n", envelope.report.final_frame);
             //Serial.printf("Responses OK: %u (%.1f%%)\n", envelope.report.responses_ok, 
             //             (float)envelope.report.responses_ok / envelope.report.frames_sent * 100);
             //Serial.printf("Responses ERROR: %u (%.1f%%)\n", envelope.report.responses_error,
@@ -349,7 +315,6 @@ static void tmi_reporter_task(void* pv)
             //Serial.printf("Avg response time: %u ms\n", envelope.report.avg_response_time_ms);
             //Serial.printf("Max response time: %u ms\n", envelope.report.max_response_time_ms);
             //Serial.println("--------------------------------------------------------------");
-            //TMI_UnlockReport();
         }
     }
 }
@@ -375,7 +340,7 @@ static void calculate_final_verdict()
         if(success_rate > 0.05f) {
             // UUT accepted >5% of corrupted frames (FAIL)
             tmi_data.report.verdict = nxf1_v1_TestVerdict_VERDICT_FAIL;
-            tmi_data.report.reason = nxf1_v1_FailureReason_FAIL_NONE;
+            tmi_data.report.reason = nxf1_v1_FailureReason_FAIL_UUT_ACCEPTED_BAD_FRAMES;
             snprintf(tmi_data.report.verdict_message, 128,
                     "UUT accepted %.1f%% of corrupted frames", success_rate * 100);
         } else {
@@ -431,7 +396,7 @@ static size_t receive_modbus_response(uint8_t* buffer, size_t max_len, uint32_t 
 
 void start_tmi_tasks()
 {
-    report_ready_queue = xQueueCreate(64, sizeof(uint32_t));
+    report_ready_queue = xQueueCreate(1, sizeof(uint32_t));
     if(report_ready_queue == NULL) {
         Serial.println("[TMI] ERROR: Failed to create report queue!");
         return;
