@@ -23,6 +23,7 @@ typedef struct {
     uint32_t bytes_sent;
     uint32_t frame_id;
     uint32_t run_id;
+    uint32_t attempt_no;
 } InjectionEvent;
 
 // TMI report structure (matches protobuf TmiReport)
@@ -79,6 +80,7 @@ typedef struct {
     TMI_Report report;
     SemaphoreHandle_t mutex;
     bool test_active;
+    bool final_report_sent;
     uint32_t test_start_time;
     uint32_t next_frame_id;
 } TMI_SharedData;
@@ -87,6 +89,8 @@ typedef struct {
 extern TMI_SharedData tmi_data;
 extern QueueHandle_t injection_event_queue;
 
+// create envelope
+static nxf1_v1_Envelope envelope = nxf1_v1_Envelope_init_zero;
 
 // multitasking
 // public functions

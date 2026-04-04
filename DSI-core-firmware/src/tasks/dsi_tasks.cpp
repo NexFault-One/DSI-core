@@ -164,6 +164,7 @@ static void modbus_injector_task(void* pv)
         TMI_StartTest();
 
         uint32_t run_id = 1;
+        // DURATION = 0MS NEEDS TO REWORK! DOES NOT WORK!!
         if(duration_ms == 0)
         {
           while(!commands.stop)
@@ -175,7 +176,13 @@ static void modbus_injector_task(void* pv)
             //inj_event.bytes_sent = 8; it is being set inside ModbusProtocol.cpp
             inj_event.frame_id = tmi_data.next_frame_id++;
             inj_event.run_id = run_id;
-            xQueueSend(injection_event_queue, &inj_event, 0);
+            if(xQueueSend(injection_event_queue, &inj_event, 0) != pdTRUE)
+            {
+              TMI_LockReport();
+              tmi_data.report.queue_drop_count++;
+              TMI_UnlockReport();
+              Serial.println("[DSI_CMD_TASK] WARNING: injection_event_queue full, event dropped");
+            }
 
             run_id++;
           }
@@ -198,16 +205,25 @@ static void modbus_injector_task(void* pv)
             //injection_count++;
 
             auto burst_injector = createInjector(commands);
+            unsigned long start_time_injection = 0;
             modbus.burst_inject(burst_injector.get());
-
+            tmi_data.report.injection_duration_ms = millis()-start_time_injection;
             InjectionEvent inj_event;
             inj_event.inj_type = commands.inj_type;
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
-            inj_event.bytes_sent = 8;
+            //inj_event.bytes_sent = 8; it is being set in modbusprotocol.cpp
             inj_event.frame_id = tmi_data.next_frame_id++;
             inj_event.run_id = run_id;
-            xQueueSend(injection_event_queue, &inj_event, 0);
+            inj_event.attempt_no = 1;
+            if(xQueueSend(injection_event_queue, &inj_event, 0) != pdTRUE)
+            {
+              TMI_LockReport();
+              tmi_data.report.queue_drop_count++;
+              TMI_UnlockReport();
+              Serial.println("[DSI_CMD_TASK] WARNING: injection_event_queue full, event dropped");
+            }
             run_id++;
+            tmi_data.report.status = nxf1_v1_ExecStatus_STATUS_DONE;
             vTaskDelay(pdMS_TO_TICKS(2));
           }
         }

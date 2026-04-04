@@ -202,39 +202,28 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
 
     // transmit using Modbus & storing for protobuf
     Serial.println();
-    char final_frame[128];
-    memset(final_frame, 0, sizeof(final_frame));
+    char final_frame[512];
     size_t offset = 0;
     Serial.print("[ModbusProtocol] Final Frame: ");
-    for (size_t i = 0; i<total_msg_len;i++)
-    {
+    for (size_t i = 0; i < total_msg_len && (offset + 3) < sizeof(final_frame); i++) {
         Serial.printf("%02X ", buffer[i]);
-        // storing into final_frame variable for protobuf
-        int written = snprintf(&final_frame[offset], sizeof(final_frame) - offset, "%02X ", buffer[i]);
-        if (written) < 0
-            break;
-        if((size_t)written >= (sizeof(final_frame) - offset))
-        {
-            offset = sizeof(final_frame) - 1;
-            break;
-        }
-        offset += (size_t)written;
+        static const char hex[] = "0123456789ABCDEF";
+        uint8_t b = buffer[i];
+
+        final_frame[offset++] = hex[(b >> 4) & 0x0F];
+        final_frame[offset++] = hex[b & 0x0F];
+        final_frame[offset++] = ' ';
     }
-    if(offset > 0 && final_frame[offset-1] == ' ')
-    {
-        final_frame[offset-1] = '\0';
+
+    if (offset > 0) {
+        final_frame[offset - 1] = '\0';   // remove trailing space
     } else {
-        final_frame[sizeof(final_frame)-1] = '\0';
+        final_frame[0] = '\0';
     }
     
+    Serial.printf("[DEBUG] final_frame = '%s'\n", final_frame);
     // copying into protobuf
-    TMI_LockReport();
-    strncpy(tmi_data.report.final_frame, final_frame, sizeof(tmi_data.report.final_frame));
-    tmi_data.report.final_frame[sizeof(tmi_data.report.final_frame)-1] = '\0';
-    // total bytes sent
-    tmi_data.report.bytes_transmitted = total_msg_len;
-    TMI_UnlockReport();
-
+    TMI_AddModbusFrame(final_frame, total_msg_len);
     Serial.println();
     Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);
 
@@ -281,13 +270,30 @@ void ModbusProtocol::burst_inject(Injector* injector)
     Serial1.write(buffer, total_msg_len);
     Serial1.flush();
     digitalWrite(de_pin, LOW);
+    char final_frame[512];
+    size_t offset = 0;
     Serial.print("[ModbusProtocol] Final Frame: ");
-    for (size_t i = 0; i<total_msg_len;i++)
-    {
+    for (size_t i = 0; i < total_msg_len && (offset + 3) < sizeof(final_frame); i++) {
         Serial.printf("%02X ", buffer[i]);
+        static const char hex[] = "0123456789ABCDEF";
+        uint8_t b = buffer[i];
+
+        final_frame[offset++] = hex[(b >> 4) & 0x0F];
+        final_frame[offset++] = hex[b & 0x0F];
+        final_frame[offset++] = ' ';
     }
 
-    Serial.println();
+    if (offset > 0) {
+        final_frame[offset - 1] = '\0';   // remove trailing space
+    } else {
+        final_frame[0] = '\0';
+    }
+    
+    Serial.printf("[DEBUG] final_frame = '%s'\n", final_frame);
+    // copying into protobuf
+    TMI_AddModbusFrame(final_frame, total_msg_len);
+    Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);
+
     Serial.println("[ModbusProtocol] Transmitted to UUT via Serial1");
 }
 
