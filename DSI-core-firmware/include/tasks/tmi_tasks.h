@@ -49,6 +49,7 @@ typedef struct {
     
     // frame stats
     uint32_t frames_sent;
+    char original_frame[512];
     char final_frame[512];
     uint32_t responses_ok;
     uint32_t responses_error;

@@ -223,7 +223,7 @@ void ModbusProtocol::inject(Injector* injector, uint8_t* data, size_t data_len)
     
     Serial.printf("[DEBUG] final_frame = '%s'\n", final_frame);
     // copying into protobuf
-    TMI_AddModbusFrame(final_frame, total_msg_len);
+    TMI_AddModbusFinalFrame(final_frame, total_msg_len);
     Serial.println();
     Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);
 
@@ -249,8 +249,34 @@ void ModbusProtocol::burst_inject(Injector* injector)
 {
     uint8_t buffer[512];
     size_t frame_len = 0;
-
+    
     buildModbusFrame(buffer, frame_len); 
+
+    // add CRC to get the complete original frame
+    uint16_t original_crc = calculateCRC(buffer, frame_len);
+    buffer[frame_len] = original_crc & 0xFF;
+    buffer[frame_len + 1] = (original_crc >> 8) & 0xFF;
+    size_t original_total = frame_len + 2;
+ 
+    // print original frame before injection
+    char original_frame[512];
+    size_t o_offset = 0;
+    Serial.print("[ModbusProtocol] original_frame: ");
+    for (size_t i = 0; i < original_total && (o_offset + 3) < sizeof(original_frame); i++) {
+        Serial.printf("%02X ", buffer[i]);
+        static const char hex[] = "0123456789ABCDEF";
+        uint8_t b = buffer[i];
+        original_frame[o_offset++] = hex[(b >> 4) & 0x0F];
+        original_frame[o_offset++] = hex[b & 0x0F];
+        original_frame[o_offset++] = ' ';
+    }
+    if (o_offset > 0) {
+        original_frame[o_offset - 1] = '\0';
+    } else {
+        original_frame[0] = '\0';
+    }
+    Serial.println();
+    TMI_AddModbusOriginalFrame(original_frame);
 
     size_t new_injected_len = 2;
     if(injector != nullptr) {
@@ -291,7 +317,7 @@ void ModbusProtocol::burst_inject(Injector* injector)
     
     Serial.printf("[DEBUG] final_frame = '%s'\n", final_frame);
     // copying into protobuf
-    TMI_AddModbusFrame(final_frame, total_msg_len);
+    TMI_AddModbusFinalFrame(final_frame, total_msg_len);
     Serial.printf("[ModbusProtocol] Total: %d bytes\n", total_msg_len);
 
     Serial.println("[ModbusProtocol] Transmitted to UUT via Serial1");

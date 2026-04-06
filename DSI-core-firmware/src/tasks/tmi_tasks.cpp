@@ -112,7 +112,8 @@ static void tmi_monitoring_task(void* pv)
     for(;;)
     {
         InjectionEvent event;
-        if(xQueueReceive(injection_event_queue, &event, portMAX_DELAY) == pdTRUE)
+        bool got_event = (xQueueReceive(injection_event_queue, &event, pdMS_TO_TICKS(250)) == pdTRUE);
+        if(got_event)
         {
             Serial.printf("[TMI_MON] Received injection event (frame_id=%u)\n", event.frame_id);
             
@@ -147,6 +148,7 @@ static void tmi_monitoring_task(void* pv)
                 // TIMEOUT
                 tmi_data.report.responses_timeout++;
                 consecutive_timeouts++;
+                tmi_data.report.attempt_no++;
                 
                 Serial.printf("[TMI_MON] Timeout count: %u consecutive\n", consecutive_timeouts);
                 
@@ -193,15 +195,15 @@ static void tmi_monitoring_task(void* pv)
             
             TMI_UnlockReport();
             
-            // check if test is complete
-            if(!tmi_data.test_active) {
-                Serial.println("[TMI_MON] Test complete! Calculating verdict...");
-                calculate_final_verdict();
-                
-                // signal reporter task
-                uint32_t signal = 1;
-                xQueueSend(report_ready_queue, &signal, 0);
-            }
+        }
+        // check if test is complete
+        if(!tmi_data.test_active && uxQueueMessagesWaiting(injection_event_queue) == 0) {
+            Serial.println("[TMI_MON] Test complete! Calculating verdict...");
+            calculate_final_verdict();
+            
+            // signal reporter task
+            uint32_t signal = 1;
+            xQueueSend(report_ready_queue, &signal, 0);
         }
     }
 }
@@ -252,12 +254,14 @@ static void tmi_reporter_task(void* pv)
             
             // frame stats
             envelope.report.frames_sent = tmi_data.report.frames_sent;
-            // frame stats
-            envelope.report.frames_sent = tmi_data.report.frames_sent;
             memcpy(envelope.report.final_frame,
                    tmi_data.report.final_frame,
                    sizeof(envelope.report.final_frame));
             envelope.report.final_frame[sizeof(envelope.report.final_frame) - 1] = '\0';
+            memcpy(envelope.report.original_frame,
+                   tmi_data.report.original_frame,
+                   sizeof(envelope.report.original_frame));
+            envelope.report.original_frame[sizeof(envelope.report.original_frame) - 1] = '\0';
             envelope.report.responses_ok = tmi_data.report.responses_ok;
             envelope.report.responses_ok = tmi_data.report.responses_ok;
             envelope.report.responses_error = tmi_data.report.responses_error;
