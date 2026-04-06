@@ -15,7 +15,7 @@
 #include "protocols/ModbusProtocol.h"
 #include "tasks/tmi_tasks.h"
 
-#define MODBUS_DE 47
+#define MODBUS_DE 41
 
 inline const char* getPayload(const nxf1_v1_DsiCommand& cmd)
 {

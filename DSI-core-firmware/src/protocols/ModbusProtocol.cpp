@@ -275,7 +275,6 @@ void ModbusProtocol::burst_inject(Injector* injector)
     } else {
         original_frame[0] = '\0';
     }
-    Serial.println();
     TMI_AddModbusOriginalFrame(original_frame);
 
     size_t new_injected_len = 2;
@@ -292,9 +291,10 @@ void ModbusProtocol::burst_inject(Injector* injector)
     }
 
     digitalWrite(de_pin, HIGH);
-    // delay(1); // Keep this for hardware stability, but only if needed
+    delay(1); // Keep this for hardware stability, but only if needed
     Serial1.write(buffer, total_msg_len);
     Serial1.flush();
+    delay(1);
     digitalWrite(de_pin, LOW);
     char final_frame[512];
     size_t offset = 0;
