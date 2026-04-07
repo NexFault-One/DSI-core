@@ -161,6 +161,7 @@ static void modbus_injector_task(void* pv)
         TMI_StartTest();
 
         uint32_t run_id = 1;
+        uint32_t attempt_no = 1;
         // DURATION = 0MS NEEDS TO REWORK! DOES NOT WORK!!
         if(duration_ms == 0)
         {
@@ -171,7 +172,6 @@ static void modbus_injector_task(void* pv)
             inj_event.inj_type = commands.inj_type;
             inj_event.transport = nxf1_v1_TransportType_TRANSPORT_MODBUS;
             inj_event.frame_id = tmi_data.next_frame_id++;
-            inj_event.run_id = run_id;
             if(xQueueSend(injection_event_queue, &inj_event, 0) != pdTRUE)
             {
               TMI_LockReport();
